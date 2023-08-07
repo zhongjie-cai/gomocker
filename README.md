@@ -5,6 +5,8 @@
 
 A mocker library for Go based on gomonkey features, allowing developers to mock either functions or struct methods according to unit test needs.
 
+Important Note: must set the build flag `-gcflags=all=-l` so as to make this library properly functional.
+
 ### Scenario 1 - Mock a private function
 
 With the following function `foo` in code:
