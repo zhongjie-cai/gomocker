@@ -111,7 +111,7 @@ func (m *mocker) recover(name string) {
 func (m *mocker) getTypeName(typeValue reflect.Type) string {
 	m.tester.Helper()
 	switch typeValue.Kind() {
-	case reflect.Array, reflect.Chan, reflect.Map, reflect.Pointer, reflect.Slice:
+	case reflect.Array, reflect.Chan, reflect.Map, reflect.Ptr, reflect.Slice:
 		return fmt.Sprint(typeValue.Elem().PkgPath(), ".", typeValue.Elem().Name())
 	}
 	return fmt.Sprint(typeValue.PkgPath(), ".", typeValue.Name())
