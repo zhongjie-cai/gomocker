@@ -1,4 +1,7 @@
-# mocker
+# gomocker
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/zhongjie-cai/mocker)](https://goreportcard.com/report/github.com/zhongjie-cai/mocker)
+[![Go Reference](https://pkg.go.dev/badge/github.com/zhongjie-cai/gomocker.svg)](https://pkg.go.dev/github.com/zhongjie-cai/gomocker)
 
 A mocker library for Go based on gomonkey features, allowing developers to mock either functions or struct methods according to unit test needs.
 

@@ -67,6 +67,7 @@ func NewMocker(tester testing.TB) Mocker {
 		locker:  &sync.Mutex{},
 	}
 	m.tester.Cleanup(m.verifyAll)
+	m.tester.Helper()
 	return m
 }
 
@@ -76,10 +77,12 @@ type funcValue struct {
 }
 
 func (m *mocker) getReflectPointer(value reflect.Value) uintptr {
+	m.tester.Helper()
 	return *(*uintptr)((*funcValue)(unsafe.Pointer(&value)).p)
 }
 
 func (m *mocker) getFuncPointer(expectFunc interface{}) (uintptr, string) {
+	m.tester.Helper()
 	var value = reflect.ValueOf(expectFunc)
 	var funcPtr = m.getReflectPointer(value)
 	var pointer = value.Pointer()
@@ -94,6 +97,7 @@ func (m *mocker) recover(name string) {
 	if result == nil {
 		return
 	}
+	m.tester.Helper()
 	var message string
 	var err, ok = result.(error)
 	if ok {
@@ -105,6 +109,7 @@ func (m *mocker) recover(name string) {
 }
 
 func (m *mocker) getTypeName(typeValue reflect.Type) string {
+	m.tester.Helper()
 	switch typeValue.Kind() {
 	case reflect.Array, reflect.Chan, reflect.Map, reflect.Pointer, reflect.Slice:
 		return fmt.Sprint(typeValue.Elem().PkgPath(), ".", typeValue.Elem().Name())
@@ -113,10 +118,12 @@ func (m *mocker) getTypeName(typeValue reflect.Type) string {
 }
 
 func (m *mocker) makeFunc(name string, funcPtr uintptr, mockFunc interface{}) reflect.Value {
+	m.tester.Helper()
 	var funcType = reflect.TypeOf(mockFunc)
 	return reflect.MakeFunc(
 		funcType,
 		func(args []reflect.Value) []reflect.Value {
+			m.tester.Helper()
 			defer m.recover(name)
 			var entry, found = m.entries[funcPtr]
 			var funcValue = reflect.ValueOf(mockFunc)
@@ -143,6 +150,7 @@ func (m *mocker) makeFunc(name string, funcPtr uintptr, mockFunc interface{}) re
 }
 
 func (m *mocker) setupExpect(name string, funcPtr uintptr, count int, mockFunc interface{}) {
+	m.tester.Helper()
 	var mockValue = reflect.ValueOf(mockFunc)
 	var entry, found = m.entries[funcPtr]
 	if found {
@@ -183,6 +191,7 @@ func (m *mocker) setupExpect(name string, funcPtr uintptr, count int, mockFunc i
 //	mockFunc pass in the pointer to the function to be actually called during test execution
 //	returns the mocker instance itself to allow fluent calls to it
 func (m *mocker) ExpectFunc(expectFunc interface{}, count int, mockFunc interface{}) Mocker {
+	m.tester.Helper()
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	var funcPtr, name = m.getFuncPointer(expectFunc)
@@ -195,6 +204,7 @@ func (m *mocker) ExpectFunc(expectFunc interface{}, count int, mockFunc interfac
 }
 
 func (m *mocker) getMethodPointer(targetStruct interface{}, expectMethod string) (uintptr, reflect.Value, string) {
+	m.tester.Helper()
 	var typeValue, ok = targetStruct.(reflect.Type)
 	if !ok {
 		typeValue = reflect.TypeOf(targetStruct)
@@ -213,6 +223,7 @@ func (m *mocker) getMethodPointer(targetStruct interface{}, expectMethod string)
 }
 
 func (m *mocker) getPrivateMethodPointer(targetStruct interface{}, expectMethod string) (uintptr, string) {
+	m.tester.Helper()
 	var typeValue, ok = targetStruct.(reflect.Type)
 	if !ok {
 		typeValue = reflect.TypeOf(targetStruct)
@@ -231,6 +242,7 @@ func (m *mocker) getPrivateMethodPointer(targetStruct interface{}, expectMethod 
 }
 
 func (m *mocker) isPrivateMethod(methodName string) bool {
+	m.tester.Helper()
 	var firstChar = methodName[0]
 	return firstChar >= 'a' && firstChar <= 'z'
 }
@@ -244,6 +256,7 @@ func (m *mocker) isPrivateMethod(methodName string) bool {
 //	  due to language specs, one additional parameter is expected as the first parameter in the method signature, reflecting the struct pointer or value itself
 //	returns the mocker instance itself to allow fluent calls to it
 func (m *mocker) ExpectMethod(targetStruct interface{}, expectMethod string, count int, mockMethod interface{}) Mocker {
+	m.tester.Helper()
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	var funcPtr uintptr
@@ -268,6 +281,7 @@ func (m *mocker) ExpectMethod(targetStruct interface{}, expectMethod string, cou
 }
 
 func (m *mocker) verifyAll() {
+	m.tester.Helper()
 	for _, entry := range m.entries {
 		if entry.expect != entry.actual {
 			m.tester.Errorf(

@@ -462,6 +462,10 @@ func (t *tester) Cleanup(f func()) {
 	t.t.Cleanup(f)
 }
 
+func (t *tester) Helper() {
+	t.t.Helper()
+}
+
 func TestMocker_ShouldReportTestFailureWhenMockFunctionIsNotCalledButExpected(t *testing.T) {
 	// arrange
 	var tester = &tester{t: t}
