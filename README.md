@@ -1,6 +1,6 @@
 # gomocker
+![Test](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml/badge.svg)
 ![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)
-
 [![Go Report Card](https://goreportcard.com/badge/github.com/zhongjie-cai/mocker)](https://goreportcard.com/report/github.com/zhongjie-cai/mocker)
 [![Go Reference](https://pkg.go.dev/badge/github.com/zhongjie-cai/gomocker.svg)](https://pkg.go.dev/github.com/zhongjie-cai/gomocker)
 
