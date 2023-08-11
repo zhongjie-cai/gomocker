@@ -1,4 +1,4 @@
-module github.com/zhongjie-cai/mocker
+module github.com/zhongjie-cai/gomocker
 
 go 1.16
 
