@@ -52,5 +52,3 @@ jobs:
         with:
           github_token: ${{ github.token }}
           branch: ${{ github.ref }}
-      - name: Coveralls GitHub Action
-        uses: coverallsapp/github-action@v2
