@@ -25,6 +25,12 @@ type Mocker interface {
 	//   returns the mocker instance itself to allow fluent calls to it
 	ExpectFunc(expectFunc interface{}, count int, mockFunc interface{}) Mocker
 
+	// FuncCalledCount checks the number of calls made to the expected function as of the time this method is executed
+	//
+	//	expectFunc pass in the pointer to the function to be mocked
+	//	returns the number of calls made to the expected function
+	FuncCalledCount(expectFunc interface{}) int
+
 	// ExpectMethod allows one to mock either a public or private method associated to a struct or interface visible to the current package
 	//
 	//   targetStruct pass in the pointer to the struct or interface instance to be mocked
@@ -34,6 +40,13 @@ type Mocker interface {
 	//     due to language specs, one additional parameter is expected as the first parameter in the method signature, reflecting the struct pointer or value itself
 	//   returns the mocker instance itself to allow fluent calls to it
 	ExpectMethod(targetStruct interface{}, expectMethod string, count int, mockMethod interface{}) Mocker
+	
+	// MethodCalledCount checks the number of calls made to the expected method as of the time this method is executed
+	//
+	//	targetStruct pass in the pointer to the struct or interface instance to be mocked
+	//	expectMethod pass in the name of the method to be mocked
+	//	returns the number of calls made to the expected method
+	MethodCalledCount(targetStruct interface{}, expectMethod string) int
 }
 
 type funcEntry struct {
@@ -203,6 +216,22 @@ func (m *mocker) ExpectFunc(expectFunc interface{}, count int, mockFunc interfac
 	return m
 }
 
+// FuncCalledCount checks the number of calls made to the expected function as of the time this method is executed
+//
+//	expectFunc pass in the pointer to the function to be mocked
+//	returns the number of calls made to the expected function
+func (m *mocker) FuncCalledCount(expectFunc interface{}) int {
+	m.tester.Helper()
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	var funcPtr, _ = m.getFuncPointer(expectFunc)
+	var entry, found = m.entries[funcPtr]
+	if !found {
+		return 0
+	}
+	return entry.actual
+}
+
 func (m *mocker) getMethodPointer(targetStruct interface{}, expectMethod string) (uintptr, reflect.Value, string) {
 	m.tester.Helper()
 	var typeValue, ok = targetStruct.(reflect.Type)
@@ -278,6 +307,28 @@ func (m *mocker) ExpectMethod(targetStruct interface{}, expectMethod string, cou
 	}
 	m.setupExpect(name, funcPtr, count, mockMethod)
 	return m
+}
+
+// MethodCalledCount checks the number of calls made to the expected method as of the time this method is executed
+//
+//	targetStruct pass in the pointer to the struct or interface instance to be mocked
+//	expectMethod pass in the name of the method to be mocked
+//	returns the number of calls made to the expected method
+func (m *mocker) MethodCalledCount(targetStruct interface{}, expectMethod string) int {
+	m.tester.Helper()
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	var funcPtr uintptr
+	if m.isPrivateMethod(expectMethod) {
+		funcPtr, _ = m.getPrivateMethodPointer(targetStruct, expectMethod)
+	} else {
+		funcPtr, _, _ = m.getMethodPointer(targetStruct, expectMethod)
+	}
+	var entry, found = m.entries[funcPtr]
+	if !found {
+		return 0
+	}
+	return entry.actual
 }
 
 func (m *mocker) verifyAll() {

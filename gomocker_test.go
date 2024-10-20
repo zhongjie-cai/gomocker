@@ -60,6 +60,39 @@ func TestMocker_ShouldMockPrivateFunctionMultipleTimes(t *testing.T) {
 	assertEquals(t, dummyResult2, result2, "foo1 2nd call result different")
 }
 
+func TestMocker_ShouldMockPrivateFunctionMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.ExpectFunc(foo1, 2, func(bar int) int {
+		if m.FuncCalledCount(foo1) == 1 {
+			assertEquals(t, dummyBar1, bar, "foo1 1st call parameter different")
+			return dummyResult1
+		} else if m.FuncCalledCount(foo1) == 2 {
+			assertEquals(t, dummyBar2, bar, "foo1 2nd call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("foo1 called more than twice")
+		return -1
+	})
+
+	// SUT + act
+	var result1 = foo1(dummyBar1)
+	var result2 = foo1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "foo1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "foo1 2nd call result different")
+	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
+}
+
 func Foo1(bar int) int {
 	return bar * 2
 }
@@ -113,6 +146,39 @@ func TestMocker_ShouldMockPublicFunctionMultipleTimes(t *testing.T) {
 	assertEquals(t, dummyResult2, result2, "Foo1 2nd call result different")
 }
 
+func TestMocker_ShouldMockPublicFunctionMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.ExpectFunc(Foo1, 2, func(bar int) int {
+		if m.FuncCalledCount(Foo1) == 1 {
+			assertEquals(t, dummyBar1, bar, "Foo1 1st call parameter different")
+			return dummyResult1
+		} else if m.FuncCalledCount(Foo1) == 2 {
+			assertEquals(t, dummyBar2, bar, "Foo1 2nd call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("foo1 called more than twice")
+		return -1
+	})
+
+	// SUT + act
+	var result1 = Foo1(dummyBar1)
+	var result2 = Foo1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "Foo1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "Foo1 2nd call result different")
+	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
+}
+
 type foo2 struct {
 	self int
 }
@@ -149,6 +215,83 @@ func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiver(t *testing.T) {
 	assertEquals(t, dummyResult, result, "(*foo2).bar1 call result different")
 }
 
+func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiverMultipleTimes(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectFunc((*foo2).bar1, 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+		assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
+		return dummyResult1
+	}).ExpectFunc((*foo2).bar1, 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+		assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
+		return dummyResult2
+	})
+
+	// act
+	var result1 = sut.bar1(dummyBar1)
+	var result2 = sut.bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
+}
+
+func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectFunc((*foo2).bar1, 2, func(obj *foo2, bar int) int {
+		if m.FuncCalledCount((*foo2).bar1) == 1 {
+			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+			assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
+			return dummyResult1
+		} else if m.FuncCalledCount((*foo2).bar1) == 2 {
+			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+			assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("(*foo2).bar1 called more than twice")
+		return -1
+	})
+
+	// act
+	var result1 = sut.bar1(dummyBar1)
+	var result2 = sut.bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
+	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
+}
+
 func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiver(t *testing.T) {
 	// arrange
 	var dummySelf = rand.Intn(100)
@@ -175,6 +318,83 @@ func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiver(t *testing.T) {
 
 	// assert
 	assertEquals(t, dummyResult, result, "(*foo2).bar1 call result different")
+}
+
+func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiverMultipleTimes(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectMethod(&foo2{}, "bar1", 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+		assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
+		return dummyResult1
+	}).ExpectMethod(&foo2{}, "bar1", 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+		assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
+		return dummyResult2
+	})
+
+	// act
+	var result1 = sut.bar1(dummyBar1)
+	var result2 = sut.bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
+}
+
+func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectMethod(&foo2{}, "bar1", 2, func(obj *foo2, bar int) int {
+		if m.MethodCalledCount(&foo2{}, "bar1") == 1 {
+			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+			assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
+			return dummyResult1
+		} else if m.MethodCalledCount(&foo2{}, "bar1") == 2 {
+			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
+			assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("(*foo2).bar1 called more than twice")
+		return -1
+	})
+
+	// act
+	var result1 = sut.bar1(dummyBar1)
+	var result2 = sut.bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
+	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "Bar1"), "not mocked function count calculated wrongly")
 }
 
 func (f *foo2) Bar1(bar int) int {
@@ -209,6 +429,83 @@ func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiver(t *testing.T) {
 	assertEquals(t, dummyResult, result, "(*foo2).Bar1 call result different")
 }
 
+func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiverMultipleTimes(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectFunc((*foo2).Bar1, 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+		assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
+		return dummyResult1
+	}).ExpectFunc((*foo2).Bar1, 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+		assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
+		return dummyResult2
+	})
+
+	// act
+	var result1 = sut.Bar1(dummyBar1)
+	var result2 = sut.Bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
+}
+
+func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectFunc((*foo2).Bar1, 2, func(obj *foo2, bar int) int {
+		if m.FuncCalledCount((*foo2).Bar1) == 1 {
+			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+			assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
+			return dummyResult1
+		} else if m.FuncCalledCount((*foo2).Bar1) == 2 {
+			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+			assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("(*foo2).Bar1 called more than twice")
+		return -1
+	})
+
+	// act
+	var result1 = sut.Bar1(dummyBar1)
+	var result2 = sut.Bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
+	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "bar1"), "not mocked function count calculated wrongly")
+}
+
 func TestMocker_ShouldMockPublicMethodOnStructPointerReceiver(t *testing.T) {
 	// arrange
 	var dummySelf = rand.Intn(100)
@@ -235,6 +532,83 @@ func TestMocker_ShouldMockPublicMethodOnStructPointerReceiver(t *testing.T) {
 
 	// assert
 	assertEquals(t, dummyResult, result, "(*foo2).Bar1 call result different")
+}
+
+func TestMocker_ShouldMockPublicMethodOnStructPointerReceiverMultipleTimes(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectMethod(&foo2{}, "Bar1", 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+		assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
+		return dummyResult1
+	}).ExpectMethod(&foo2{}, "Bar1", 1, func(obj *foo2, bar int) int {
+		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+		assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
+		return dummyResult2
+	})
+
+	// act
+	var result1 = sut.Bar1(dummyBar1)
+	var result2 = sut.Bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
+}
+
+func TestMocker_ShouldMockPublicMethodOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
+	// arrange
+	var dummySelf = rand.Intn(100)
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &foo2{
+		self: dummySelf,
+	}
+
+	// expect
+	m.ExpectMethod(&foo2{}, "Bar1", 2, func(obj *foo2, bar int) int {
+		if m.MethodCalledCount(&foo2{}, "Bar1") == 1 {
+			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+			assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
+			return dummyResult1
+		} else if m.MethodCalledCount(&foo2{}, "Bar1") == 2 {
+			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
+			assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
+			return dummyResult2
+		}
+		t.Errorf("(*foo2).Bar1 called more than twice")
+		return -1
+	})
+
+	// act
+	var result1 = sut.Bar1(dummyBar1)
+	var result2 = sut.Bar1(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
+	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
+	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "bar1"), "not mocked function count calculated wrongly")
 }
 
 func (f foo2) bar2(bar int) int {

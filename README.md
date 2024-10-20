@@ -1,4 +1,5 @@
 # gomocker
+
 ![Test](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml/badge.svg)
 ![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zhongjie-cai/mocker)](https://goreportcard.com/report/github.com/zhongjie-cai/mocker)
@@ -64,7 +65,7 @@ func foo(bar int) int {
 }
 ```
 
-One can mock it with the following code when called multiple times:
+One can mock it with the following code when called multiple times, and use the `FuncCalledCount` or `MethodCalledCount` to examine the number of calls within the mocked function or method if necessary:
 
 ```go
 // mock
@@ -72,7 +73,11 @@ var m = NewMocker(t)
 
 // expect
 m.ExpectFunc(foo, 2, func(bar int) int { // expect this mockFunc to be executed twice
-    // fill in with your own assertions and return for the first two calls
+    if m.FuncCalledCount(foo) == 1 {
+        // fill in with your own assertions and return for the first call
+    } else if m.FuncCalledCount(foo) == 2 {
+        // fill in with your own assertions and return for the second call
+    }
 }).ExpectFunc(foo, 1, func(bar int) int { // expect this mockFunc to be executed once
     // fill in with your own assertions and return for the third call
 })
