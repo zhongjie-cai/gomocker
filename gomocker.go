@@ -40,7 +40,7 @@ type Mocker interface {
 	//     due to language specs, one additional parameter is expected as the first parameter in the method signature, reflecting the struct pointer or value itself
 	//   returns the mocker instance itself to allow fluent calls to it
 	ExpectMethod(targetStruct interface{}, expectMethod string, count int, mockMethod interface{}) Mocker
-	
+
 	// MethodCalledCount checks the number of calls made to the expected method as of the time this method is executed
 	//
 	//	targetStruct pass in the pointer to the struct or interface instance to be mocked
