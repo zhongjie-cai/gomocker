@@ -1,15 +1,15 @@
 # gomocker
 
-![Test](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml/badge.svg)
-![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)
+[![Test](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml/badge.svg)](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml)
+[![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zhongjie-cai/gomocker)](https://goreportcard.com/report/github.com/zhongjie-cai/gomocker)
 [![Go Reference](https://pkg.go.dev/badge/github.com/zhongjie-cai/gomocker.svg)](https://pkg.go.dev/github.com/zhongjie-cai/gomocker)
 
-A mocker library for Go based on gomonkey features, allowing developers to mock either functions or struct methods according to unit test needs.
+A mocker library for Go inspired by gomonkey features, allowing developers to mock functions or struct methods for unit tests.
 
-Important Note: must set the build flag `-gcflags=all=-l` so as to make this library properly functional.
+**Important Note: must set the build flag `-gcflags=all=-l` so as to make this library properly functional.**
 
-### Scenario 1 - Mock a private function
+### Scenario 1 - Mock a function (either private or public, as long as accessible)
 
 With the following function `foo` in code:
 
@@ -23,67 +23,21 @@ One can mock it with the following code:
 
 ```go
 // mock
-var m = NewMocker(t)
+var m = gomocker.NewMocker(t)
 
 // expect
-m.ExpectFunc(foo, 1, func(bar int) int {
-    // fill in with your own assertions and return
-})
+m.Mock(
+    foo
+).Expects(
+    // place your expected parameters here
+).Returns(
+    // place your anticipated returns here
+).Once(
+    // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
+)
 ```
 
-### Scenario 2 - Mock a public function
-
-With the following function `Foo` of package `example` in code:
-
-```go
-package example
-
-func Foo(bar int) int {
-	return bar * 2
-}
-```
-
-One can mock it with the following code:
-
-```go
-// mock
-var m = NewMocker(t)
-
-// expect
-m.ExpectFunc(example.Foo, 1, func(bar int) int {
-    // fill in with your own assertions and return
-})
-```
-
-### Scenario 3 - Mock a function multiple times
-
-With the following function `foo` in code:
-
-```go
-func foo(bar int) int {
-	return bar * 2
-}
-```
-
-One can mock it with the following code when called multiple times, and use the `FuncCalledCount` or `MethodCalledCount` to examine the number of calls within the mocked function or method if necessary:
-
-```go
-// mock
-var m = NewMocker(t)
-
-// expect
-m.ExpectFunc(foo, 2, func(bar int) int { // expect this mockFunc to be executed twice
-    if m.FuncCalledCount(foo) == 1 {
-        // fill in with your own assertions and return for the first call
-    } else if m.FuncCalledCount(foo) == 2 {
-        // fill in with your own assertions and return for the second call
-    }
-}).ExpectFunc(foo, 1, func(bar int) int { // expect this mockFunc to be executed once
-    // fill in with your own assertions and return for the third call
-})
-```
-
-### Scenario 4 - mock a private struct method
+### Scenario 2 - Mock a struct method (either private or public, as long as accessible)
 
 With the following struct `foo` with method `bar` in code:
 
@@ -100,72 +54,27 @@ func (f *foo) bar(val int) int {
 One can mock it with the following code using `ExpectMethod`:
 
 ```go
+// arrange
+var f = &foo{}
+
 // mock
-var m = NewMocker(t)
+var m = gomocker.NewMocker(t)
 
 // expect
-m.ExpectMethod(&foo{}, "bar", 1, func(obj *foo, val int) int { // obj must be the same pointer type as the targetStruct
-    // fill in with your own assertions and return
-})
+m.Mock(
+    (*foo).bar
+).Expects(
+    // the first parameter should be the exact instance of the struct foo that initiates the method call
+    //   e.g. `f` in this example
+    // followed by other expected parameters here
+).Returns(
+    // place your anticipated returns here
+).Once(
+    // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
+)
 ```
 
-Or can mock it with the following code using `ExpectFunc`:
-
-```go
-// mock
-var m = NewMocker(t)
-
-// expect
-m.ExpectFunc((*foo).bar, 1, func(obj *foo, val int) int { // obj must be the same pointer type as the expectFunc's owner struct
-    // fill in with your own assertions and return
-})
-```
-
-Mocking value receivers works similar to pointer receivers, only to make sure the targetStruct or expectFunc points to a struct's value instance, and the `obj` parameter's type should change accordingly.
-
-### Scenario 5 - mock a public struct method
-
-With the following struct `Foo` with method `Bar` of package `example` in code:
-
-```go
-package example
-
-type Foo struct {
-    self int
-}
-
-func (f *Foo) Bar(val int) int {
-    return val * self
-}
-```
-
-One can mock it with the following code using `ExpectMethod`:
-
-```go
-// mock
-var m = NewMocker(t)
-
-// expect
-m.ExpectMethod(&example.Foo{}, "Bar", 1, func(obj *example.Foo, val int) int { // obj must be the same pointer type as the targetStruct
-    // fill in with your own assertions and return
-})
-```
-
-Or can mock it with the following code using `ExpectFunc`:
-
-```go
-// mock
-var m = NewMocker(t)
-
-// expect
-m.ExpectFunc((*example.Foo).Bar, 1, func(obj *example.Foo, val int) int { // obj must be the same pointer type as the expectFunc's owner struct
-    // fill in with your own assertions and return
-})
-```
-
-Mocking value receivers works similar to pointer receivers, only to make sure the targetStruct or expectFunc points to a struct's value instance, and the `obj` parameter's type should change accordingly.
-
-### Scenario 6 - mock a public interface method
+### Scenario 3 - mock a public interface method
 
 With the following interface `Foo` with method `Bar` of package `example` in code:
 
@@ -197,10 +106,89 @@ type dummyFoo struct {
 var f = &dummyFoo{}
 
 // mock
-var m = NewMocker(t)
+var m = gomocker.NewMocker(t)
 
 // expect
-m.ExpectMethod(&dummyFoo{}, "Bar", 1, func(obj *dummyFoo, val int) int { // obj must be the same pointer type as the targetStruct
-    // fill in with your own assertions and return
-})
+m.Mock(
+    (*dummyFoo).Bar
+).Expects(
+    // the first parameter should be the exact instance of the struct dummyFoo that initiates the method call
+    //   e.g. `f` in this example
+    // followed by other expected parameters here
+).Returns(
+    // place your anticipated returns here
+).Once(
+    // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
+)
+```
+
+### Scenario 4 - mock a function / method with side effects
+
+```go
+// mock
+var m = gomocker.NewMocker(t)
+
+// expect
+m.Mock(
+    foo
+).Expects(
+    // place your expected parameters here
+).Returns(
+    // place your anticipated returns here
+).SideEffect(
+    func(index int) {
+        // place your side effect code logic here
+        // the given parameter `index` means the number of calls (including the current call)
+        //   to the mocked or stubbed function happened so far
+	}
+).Once(
+    // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
+)
+```
+
+### Scenario 5 - mock a function / method to be not called
+
+```go
+// mock
+var m = gomocker.NewMocker(t)
+
+// expect
+m.Mock(foo).NotCalled(
+    // this completes a mock, and if `foo` is called, the test shall fail.
+    //   note that a function or method cannot be mocked or stubbed again if it is set to NotCalled
+)
+```
+
+### Scenario 6 - bypass parameter matching
+
+```go
+// arrange
+var foo = func(int) {}
+
+// mock
+var m = gomocker.NewMocker(t)
+
+// expect
+m.Mock(foo).Expects(
+    gomocker.Anything(), // this allows bypassing the value check for a particular parameter
+).Returns()
+```
+
+### Scenario 7 - customize parameter matching
+
+```go
+// arrange
+var foo = func(int) {}
+
+// mock
+var m = gomocker.NewMocker(t)
+
+// expect
+m.Mock(foo).Expects(
+    gomocker.Matches(func(value interface{}) bool) {
+        // this allows customization of the check for a particular parameter
+        //   the original parameter is wrapped into an interface and is given as `value` here
+        //   returning false would cause the corresponding test to fail
+    },
+).Returns()
 ```

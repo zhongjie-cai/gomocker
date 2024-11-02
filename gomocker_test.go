@@ -4,15 +4,28 @@ import (
 	"errors"
 	"math/rand"
 	"reflect"
+	"sync"
 	"testing"
 )
 
-func foo1(bar int) int {
-	return bar * 2
+func assertEquals(t *testing.T, expect interface{}, actual interface{}, message string) {
+	t.Helper()
+	if expect == actual {
+		return
+	}
+	t.Errorf(
+		"%v: expect %v, actual %v",
+		message,
+		expect,
+		actual,
+	)
 }
 
-func TestMocker_ShouldMockPrivateFunctionOnce(t *testing.T) {
+func TestMocker_ShouldStubFunctionOnce(t *testing.T) {
 	// arrange
+	var foo = func(bar int) int {
+		return 0
+	}
 	var dummyBar = rand.Intn(100)
 	var dummyResult = rand.Intn(100)
 
@@ -20,85 +33,72 @@ func TestMocker_ShouldMockPrivateFunctionOnce(t *testing.T) {
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar, bar, "foo1 call parameter different")
-		return dummyResult
-	})
+	m.Stub(foo).Returns(dummyResult).Once()
 
 	// SUT + act
-	var result = foo1(dummyBar)
+	var result = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult, result, "foo1 call result different")
+	assertEquals(t, dummyResult, result, "foo call result different")
 }
 
-func TestMocker_ShouldMockPrivateFunctionMultipleTimes(t *testing.T) {
+func TestMocker_ShouldStubFunctionTwice(t *testing.T) {
 	// arrange
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar1, bar, "foo1 1st call parameter different")
-		return dummyResult1
-	}).ExpectFunc(foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar2, bar, "foo1 2nd call parameter different")
-		return dummyResult2
-	})
+	m.Stub(foo).Returns(dummyResult).Twice()
 
 	// SUT + act
-	var result1 = foo1(dummyBar1)
-	var result2 = foo1(dummyBar2)
+	var result1 = foo(dummyBar)
+	var result2 = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult1, result1, "foo1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "foo1 2nd call result different")
+	assertEquals(t, dummyResult, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult, result2, "foo call result 2 different")
 }
 
-func TestMocker_ShouldMockPrivateFunctionMultipleTimes_UseCounter(t *testing.T) {
+func TestMocker_ShouldStubFunctionMultipleTimes(t *testing.T) {
 	// arrange
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(foo1, 2, func(bar int) int {
-		if m.FuncCalledCount(foo1) == 1 {
-			assertEquals(t, dummyBar1, bar, "foo1 1st call parameter different")
-			return dummyResult1
-		} else if m.FuncCalledCount(foo1) == 2 {
-			assertEquals(t, dummyBar2, bar, "foo1 2nd call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("foo1 called more than twice")
-		return -1
-	})
+	m.Stub(foo).Returns(dummyResult).Times(5)
 
 	// SUT + act
-	var result1 = foo1(dummyBar1)
-	var result2 = foo1(dummyBar2)
+	var result1 = foo(dummyBar)
+	var result2 = foo(dummyBar)
+	var result3 = foo(dummyBar)
+	var result4 = foo(dummyBar)
+	var result5 = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult1, result1, "foo1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "foo1 2nd call result different")
-	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
+	assertEquals(t, dummyResult, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult, result2, "foo call result 2 different")
+	assertEquals(t, dummyResult, result3, "foo call result 3 different")
+	assertEquals(t, dummyResult, result4, "foo call result 4 different")
+	assertEquals(t, dummyResult, result5, "foo call result 5 different")
 }
 
-func Foo1(bar int) int {
-	return bar * 2
-}
-
-func TestMocker_ShouldMockPublicFunctionOnce(t *testing.T) {
+func TestMocker_ShouldMockFunctionOnce(t *testing.T) {
 	// arrange
+	var foo = func(bar int) int {
+		return 0
+	}
 	var dummyBar = rand.Intn(100)
 	var dummyResult = rand.Intn(100)
 
@@ -106,730 +106,394 @@ func TestMocker_ShouldMockPublicFunctionOnce(t *testing.T) {
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(Foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar, bar, "Foo1 call parameter different")
-		return dummyResult
-	})
+	m.Mock(foo).Expects(dummyBar).Returns(dummyResult).Once()
 
 	// SUT + act
-	var result = Foo1(dummyBar)
+	var result = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult, result, "Foo1 call result different")
+	assertEquals(t, dummyResult, result, "foo call result different")
 }
 
-func TestMocker_ShouldMockPublicFunctionMultipleTimes(t *testing.T) {
+func TestMocker_ShouldMockFunctionTwice(t *testing.T) {
 	// arrange
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(Foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar1, bar, "Foo1 1st call parameter different")
-		return dummyResult1
-	}).ExpectFunc(Foo1, 1, func(bar int) int {
-		assertEquals(t, dummyBar2, bar, "Foo1 2nd call parameter different")
-		return dummyResult2
-	})
+	m.Mock(foo).Expects(dummyBar).Returns(dummyResult).Twice()
 
 	// SUT + act
-	var result1 = Foo1(dummyBar1)
-	var result2 = Foo1(dummyBar2)
+	var result1 = foo(dummyBar)
+	var result2 = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult1, result1, "Foo1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "Foo1 2nd call result different")
+	assertEquals(t, dummyResult, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult, result2, "foo call result 2 different")
 }
 
-func TestMocker_ShouldMockPublicFunctionMultipleTimes_UseCounter(t *testing.T) {
+func TestMocker_ShouldMockFunctionMultipleTimes(t *testing.T) {
 	// arrange
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(Foo1, 2, func(bar int) int {
-		if m.FuncCalledCount(Foo1) == 1 {
-			assertEquals(t, dummyBar1, bar, "Foo1 1st call parameter different")
-			return dummyResult1
-		} else if m.FuncCalledCount(Foo1) == 2 {
-			assertEquals(t, dummyBar2, bar, "Foo1 2nd call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("foo1 called more than twice")
-		return -1
-	})
+	m.Mock(foo).Expects(dummyBar).Returns(dummyResult).Times(5)
 
 	// SUT + act
-	var result1 = Foo1(dummyBar1)
-	var result2 = Foo1(dummyBar2)
+	var result1 = foo(dummyBar)
+	var result2 = foo(dummyBar)
+	var result3 = foo(dummyBar)
+	var result4 = foo(dummyBar)
+	var result5 = foo(dummyBar)
 
 	// assert
-	assertEquals(t, dummyResult1, result1, "Foo1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "Foo1 2nd call result different")
-	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
+	assertEquals(t, dummyResult, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult, result2, "foo call result 2 different")
+	assertEquals(t, dummyResult, result3, "foo call result 3 different")
+	assertEquals(t, dummyResult, result4, "foo call result 4 different")
+	assertEquals(t, dummyResult, result5, "foo call result 5 different")
 }
 
-type foo2 struct {
-	self int
-}
-
-func (f *foo2) bar1(bar int) int {
-	return f.self * bar
-}
-
-func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiver(t *testing.T) {
+func TestMocker_ShouldStubPublicFunction(t *testing.T) {
 	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.bar1(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "(*foo2).bar1 call result different")
-}
-
-func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiverMultipleTimes(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult1
-	}).ExpectFunc((*foo2).bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult2
-	})
-
-	// act
-	var result1 = sut.bar1(dummyBar1)
-	var result2 = sut.bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
-}
-
-func TestMocker_ShouldMockPrivateFunctionOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).bar1, 2, func(obj *foo2, bar int) int {
-		if m.FuncCalledCount((*foo2).bar1) == 1 {
-			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-			assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
-			return dummyResult1
-		} else if m.FuncCalledCount((*foo2).bar1) == 2 {
-			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-			assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("(*foo2).bar1 called more than twice")
-		return -1
-	})
-
-	// act
-	var result1 = sut.bar1(dummyBar1)
-	var result2 = sut.bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
-	assertEquals(t, 0, m.FuncCalledCount(assertEquals), "not mocked function count calculated wrongly")
-}
-
-func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.bar1(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "(*foo2).bar1 call result different")
-}
-
-func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiverMultipleTimes(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult1
-	}).ExpectMethod(&foo2{}, "bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-		assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
-		return dummyResult2
-	})
-
-	// act
-	var result1 = sut.bar1(dummyBar1)
-	var result2 = sut.bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
-}
-
-func TestMocker_ShouldMockPrivateMethodOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "bar1", 2, func(obj *foo2, bar int) int {
-		if m.MethodCalledCount(&foo2{}, "bar1") == 1 {
-			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-			assertEquals(t, dummyBar1, bar, "(*foo2).bar1 call parameter different")
-			return dummyResult1
-		} else if m.MethodCalledCount(&foo2{}, "bar1") == 2 {
-			assertEquals(t, sut, obj, "(*foo2).bar1 call instance different")
-			assertEquals(t, dummyBar2, bar, "(*foo2).bar1 call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("(*foo2).bar1 called more than twice")
-		return -1
-	})
-
-	// act
-	var result1 = sut.bar1(dummyBar1)
-	var result2 = sut.bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).bar1 2nd call result different")
-	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "Bar1"), "not mocked function count calculated wrongly")
-}
-
-func (f *foo2) Bar1(bar int) int {
-	return f.self * bar
-}
-
-func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).Bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.Bar1(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "(*foo2).Bar1 call result different")
-}
-
-func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiverMultipleTimes(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).Bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult1
-	}).ExpectFunc((*foo2).Bar1, 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult2
-	})
-
-	// act
-	var result1 = sut.Bar1(dummyBar1)
-	var result2 = sut.Bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
-}
-
-func TestMocker_ShouldMockPublicFunctionOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc((*foo2).Bar1, 2, func(obj *foo2, bar int) int {
-		if m.FuncCalledCount((*foo2).Bar1) == 1 {
-			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-			assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
-			return dummyResult1
-		} else if m.FuncCalledCount((*foo2).Bar1) == 2 {
-			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-			assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("(*foo2).Bar1 called more than twice")
-		return -1
-	})
-
-	// act
-	var result1 = sut.Bar1(dummyBar1)
-	var result2 = sut.Bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
-	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "bar1"), "not mocked function count calculated wrongly")
-}
-
-func TestMocker_ShouldMockPublicMethodOnStructPointerReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "Bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.Bar1(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "(*foo2).Bar1 call result different")
-}
-
-func TestMocker_ShouldMockPublicMethodOnStructPointerReceiverMultipleTimes(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "Bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult1
-	}).ExpectMethod(&foo2{}, "Bar1", 1, func(obj *foo2, bar int) int {
-		assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-		assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
-		return dummyResult2
-	})
-
-	// act
-	var result1 = sut.Bar1(dummyBar1)
-	var result2 = sut.Bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
-}
-
-func TestMocker_ShouldMockPublicMethodOnStructPointerReceiverMultipleTimes_UseCounter(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar1 = rand.Intn(100)
-	var dummyBar2 = rand.Intn(100)
-	var dummyResult1 = rand.Intn(100)
-	var dummyResult2 = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(&foo2{}, "Bar1", 2, func(obj *foo2, bar int) int {
-		if m.MethodCalledCount(&foo2{}, "Bar1") == 1 {
-			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-			assertEquals(t, dummyBar1, bar, "(*foo2).Bar1 call parameter different")
-			return dummyResult1
-		} else if m.MethodCalledCount(&foo2{}, "Bar1") == 2 {
-			assertEquals(t, sut, obj, "(*foo2).Bar1 call instance different")
-			assertEquals(t, dummyBar2, bar, "(*foo2).Bar1 call parameter different")
-			return dummyResult2
-		}
-		t.Errorf("(*foo2).Bar1 called more than twice")
-		return -1
-	})
-
-	// act
-	var result1 = sut.Bar1(dummyBar1)
-	var result2 = sut.Bar1(dummyBar2)
-
-	// assert
-	assertEquals(t, dummyResult1, result1, "(*foo2).Bar1 1st call result different")
-	assertEquals(t, dummyResult2, result2, "(*foo2).Bar1 2nd call result different")
-	assertEquals(t, 0, m.MethodCalledCount(&foo2{}, "bar1"), "not mocked function count calculated wrongly")
-}
-
-func (f foo2) bar2(bar int) int {
-	return f.self * bar
-}
-
-func TestMocker_ShouldMockPrivateFunctionOnStructValueReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc(foo2.bar2, 1, func(obj foo2, bar int) int {
-		assertEquals(t, sut, obj, "foo2.bar2 call instance different")
-		assertEquals(t, dummyBar, bar, "foo2.bar2 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.bar2(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "foo2.bar2 call result different")
-}
-
-func TestMocker_ShouldMockPrivateMethodOnStructValueReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(foo2{}, "bar2", 1, func(obj foo2, bar int) int {
-		assertEquals(t, sut, obj, "foo2.bar2 call instance different")
-		assertEquals(t, dummyBar, bar, "foo2.bar2 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.bar2(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "foo2.bar2 call result different")
-}
-
-func (f foo2) Bar2(bar int) int {
-	return f.self * bar
-}
-
-func TestMocker_ShouldMockPublicFunctionOnStructValueReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectFunc(foo2.Bar2, 1, func(obj foo2, bar int) int {
-		assertEquals(t, sut, obj, "foo2.Bar2 call instance different")
-		assertEquals(t, dummyBar, bar, "foo2.Bar2 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.Bar2(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "foo2.Bar2 call result different")
-}
-
-func TestMocker_ShouldMockPublicMethodOnStructValueReceiver(t *testing.T) {
-	// arrange
-	var dummySelf = rand.Intn(100)
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = foo2{
-		self: dummySelf,
-	}
-
-	// expect
-	m.ExpectMethod(foo2{}, "Bar2", 1, func(obj foo2, bar int) int {
-		assertEquals(t, sut, obj, "foo2.Bar2 call instance different")
-		assertEquals(t, dummyBar, bar, "foo2.Bar2 call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = sut.Bar2(dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "foo2.Bar2 call result different")
-}
-
-type Foo3 interface {
-	Bar(bar int) int
-}
-
-type foo3 struct {
-	Foo3
-}
-
-func TestMocker_ShouldMockPublicMethodOnInterfacePointer(t *testing.T) {
-	// arrange
-	var dummyBar = rand.Intn(100)
-	var dummyResult = rand.Intn(100)
-
-	// mock
-	var m = NewMocker(t)
-
-	// SUT
-	var sut = &foo3{}
-
-	// expect
-	m.ExpectMethod(&foo3{}, "Bar", 1, func(obj *foo3, bar int) int {
-		assertEquals(t, sut, obj, "Foo3.Bar call instance different")
-		assertEquals(t, dummyBar, bar, "Foo3.Bar call parameter different")
-		return dummyResult
-	})
-
-	// act
-	var result = func(f Foo3, bar int) int {
-		return f.Bar(bar)
-	}(sut, dummyBar)
-
-	// assert
-	assertEquals(t, dummyResult, result, "Foo3.Bar call result different")
-}
-
-func foo4(bar ...int) int {
-	return len(bar)
-}
-
-func TestMocker_ShouldMockPrivateVariadicFunction(t *testing.T) {
-	// arrange
-	var dummyBar = []int{rand.Intn(100), rand.Intn(100), rand.Intn(100)}
-	var dummyResult = rand.Intn(100)
+	var dummyMessage = "some random message"
+	var dummyResult = errors.New("some other message")
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(foo4, 1, func(bar ...int) int {
-		assertEquals(t, len(dummyBar), len(bar), "foo4 call parameter count different")
-		assertEquals(t, dummyBar[0], bar[0], "foo4 call parameter 1 different")
-		assertEquals(t, dummyBar[1], bar[1], "foo4 call parameter 2 different")
-		assertEquals(t, dummyBar[2], bar[2], "foo4 call parameter 3 different")
-		return dummyResult
-	})
+	m.Stub(errors.New).Returns(dummyResult).Once()
 
 	// SUT + act
-	var result = foo4(dummyBar...)
+	var result = errors.New(dummyMessage)
 
 	// assert
-	assertEquals(t, dummyResult, result, "foo4 call result different")
+	assertEquals(t, dummyResult, result, "errors.New call result different")
 }
 
-func Foo4(bar ...int) int {
-	return len(bar)
-}
-
-func TestMocker_ShouldMockPublicVariadicFunction(t *testing.T) {
+func TestMocker_ShouldMockPublicFunction(t *testing.T) {
 	// arrange
-	var dummyBar = []int{rand.Intn(100), rand.Intn(100), rand.Intn(100)}
+	var dummyMessage = "some random message"
+	var dummyResult = errors.New("some other message")
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(errors.New).Expects(dummyMessage).Returns(dummyResult).Once()
+
+	// SUT + act
+	var result = errors.New(dummyMessage)
+
+	// assert
+	assertEquals(t, dummyResult, result, "errors.New call result different")
+}
+
+func TestMocker_ShouldStubVariadicFunction(t *testing.T) {
+	// arrange
+	var foo = func(int, ...int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyBaz = rand.Intn(100)
+	var dummyBam = rand.Intn(100)
+	var dummyBat = rand.Intn(100)
 	var dummyResult = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(t)
 
 	// expect
-	m.ExpectFunc(Foo4, 1, func(bar ...int) int {
-		assertEquals(t, len(dummyBar), len(bar), "Foo4 call parameter count different")
-		assertEquals(t, dummyBar[0], bar[0], "Foo4 call parameter 1 different")
-		assertEquals(t, dummyBar[1], bar[1], "Foo4 call parameter 2 different")
-		assertEquals(t, dummyBar[2], bar[2], "Foo4 call parameter 3 different")
-		return dummyResult
-	})
+	m.Stub(foo).Returns(dummyResult).Once()
 
 	// SUT + act
-	var result = Foo4(dummyBar...)
+	var result = foo(dummyBar, dummyBaz, dummyBam, dummyBat)
 
 	// assert
-	assertEquals(t, dummyResult, result, "Foo4 call result different")
+	assertEquals(t, dummyResult, result, "foo call result different")
+}
+
+func TestMocker_ShouldMockVariadicFunction(t *testing.T) {
+	// arrange
+	var foo = func(int, ...int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyBaz = rand.Intn(100)
+	var dummyBam = rand.Intn(100)
+	var dummyBat = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects(dummyBar, dummyBaz, dummyBam, dummyBat).Returns(dummyResult).Once()
+
+	// SUT + act
+	var result = foo(dummyBar, dummyBaz, dummyBam, dummyBat)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+}
+
+func TestMocker_ShouldStubFunctionWithSideEffect(t *testing.T) {
+	// arrange
+	var foo = func() int {
+		return 0
+	}
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Stub(foo).Returns(dummyResult).SideEffect(func(index int) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+	}).Once()
+
+	// SUT + act
+	var result = foo()
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
+}
+
+func TestMocker_ShouldMockFunctionWithSideEffect(t *testing.T) {
+	// arrange
+	var foo = func() int {
+		return 0
+	}
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects().Returns(dummyResult).SideEffect(func(index int) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+	}).Once()
+
+	// SUT + act
+	var result = foo()
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
+}
+
+func TestMocker_ShouldStubFunctionDifferently(t *testing.T) {
+	// arrange
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Stub(foo).Returns(dummyResult1).Once()
+	m.Stub(foo).Returns(dummyResult2).Once()
+
+	// SUT + act
+	var result1 = foo(dummyBar1)
+	var result2 = foo(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult2, result2, "foo call result 2 different")
+}
+
+func TestMocker_ShouldMockFunctionDifferently(t *testing.T) {
+	// arrange
+	var foo = func(bar int) int {
+		return 0
+	}
+	var dummyBar1 = rand.Intn(100)
+	var dummyBar2 = rand.Intn(100)
+	var dummyResult1 = rand.Intn(100)
+	var dummyResult2 = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects(dummyBar1).Returns(dummyResult1).Once()
+	m.Mock(foo).Expects(dummyBar2).Returns(dummyResult2).Once()
+
+	// SUT + act
+	var result1 = foo(dummyBar1)
+	var result2 = foo(dummyBar2)
+
+	// assert
+	assertEquals(t, dummyResult1, result1, "foo call result 1 different")
+	assertEquals(t, dummyResult2, result2, "foo call result 2 different")
+}
+
+func TestMocker_ShouldMockFunctionWithParameterStyle(t *testing.T) {
+	// arrange
+	var foo = func(int, int, int) int {
+		return 0
+	}
+	var dummyBar = rand.Intn(100)
+	var dummyBaz = rand.Intn(100)
+	var dummyBam = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects(dummyBar, Anything(), Matches(func(value interface{}) bool { return value == dummyBam })).Returns(dummyResult).Once()
+
+	// SUT + act
+	var result = foo(dummyBar, dummyBaz, dummyBam)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+}
+
+type testObject struct {
+}
+
+func (o *testObject) Foo(bar int) int {
+	return 0
+}
+
+func TestMocker_ShouldStubStructMethod(t *testing.T) {
+	// arrange
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Stub((*testObject).Foo).Returns(dummyResult).Once()
+
+	// SUT + act
+	var sut = &testObject{}
+
+	// act
+	var result = sut.Foo(dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "testObject.Foo call result different")
+}
+
+func TestMocker_ShouldMockStructMethod(t *testing.T) {
+	// arrange
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &testObject{}
+
+	// expect
+	m.Mock((*testObject).Foo).Expects(sut, dummyBar).Returns(dummyResult).Once()
+
+	// act
+	var result = sut.Foo(dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "testObject.Foo call result different")
+}
+
+func TestMocker_ShouldStubInterfaceMethod(t *testing.T) {
+	// arrange
+	type TestInterface interface {
+		Foo(int) int
+	}
+	var foo = func(i TestInterface, bar int) int {
+		return i.Foo(bar)
+	}
+	type testInterface struct {
+		TestInterface
+	}
+	var dummyTestObject = &testInterface{}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Stub((*testInterface).Foo).Returns(dummyResult).Once()
+
+	// SUT + act
+	var result = foo(dummyTestObject, dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+}
+
+func TestMocker_ShouldMockInterfaceMethod(t *testing.T) {
+	// arrange
+	type TestInterface interface {
+		Foo(int) int
+	}
+	var foo = func(i TestInterface, bar int) int {
+		return i.Foo(bar)
+	}
+	type testInterface struct {
+		TestInterface
+	}
+	var dummyTestObject = &testInterface{}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock((*testInterface).Foo).Expects(dummyTestObject, dummyBar).Returns(dummyResult).Once()
+
+	// SUT + act
+	var result = foo(dummyTestObject, dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
 }
 
 type tester struct {
 	testing.TB
 	t      *testing.T
 	errorf func(string, ...interface{})
+	fatalf func(string, ...interface{})
 }
 
 func (t *tester) Errorf(format string, args ...interface{}) {
 	t.errorf(format, args...)
+}
+
+func (t *tester) Fatalf(format string, args ...interface{}) {
+	t.fatalf(format, args...)
 }
 
 func (t *tester) Cleanup(f func()) {
@@ -842,6 +506,9 @@ func (t *tester) Helper() {
 
 func TestMocker_ShouldReportTestFailureWhenMockFunctionIsNotCalledButExpected(t *testing.T) {
 	// arrange
+	var foo = func(bar int) int {
+		return 0
+	}
 	var tester = &tester{t: t}
 
 	// mock
@@ -854,103 +521,43 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionIsNotCalledButExpected(t 
 		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
 		assertEquals(t, 0, args[2], "tester.Errorf called with different argument 3")
 	}
-	m.ExpectFunc(foo1, 1, func(int) int {
-		return 0
-	})
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockFunctionIsCalledActualLessThanExpected(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, 2, args[1], "tester.Errorf called with different argument 2")
-		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
-	}
-	m.ExpectFunc(foo1, 2, func(int) int {
-		return 0
-	})
-
-	// SUT + act
-	_ = foo1(0)
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockFunctionIsCalledActualMoreThanExpected(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
-		assertEquals(t, 2, args[2], "tester.Errorf called with different argument 3")
-	}
-	m.ExpectFunc(foo1, 1, func(int) int {
-		return 0
-	})
-
-	// SUT + act
-	_ = foo1(0)
-	_ = foo1(0)
+	m.Mock(foo).Expects().Returns().Once()
 }
 
 func TestMocker_ShouldReportTestFailureWhenMockFunctionIsCalledButNotExpected(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, 0, args[1], "tester.Errorf called with different argument 1")
-		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 2")
-	}
-	m.ExpectFunc(foo1, 0, func(int) int {
-		return 0
-	})
-
-	// SUT + act
-	_ = foo1(0)
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockFunctionWithWrongExpectCount(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Expect count must be greather than 0 when already mocked with other expectations", format, "tester.Errorf called with different message")
-		assertEquals(t, 1, len(args), "tester.Errorf called with different number of args")
-	}
-	m.ExpectFunc(foo1, 0, func(int) int {
-		return 0
-	}).ExpectFunc(foo1, 0, func(int) int {
-		return 0
-	})
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsInExecution(t *testing.T) {
 	defer func() {
 		recover()
 	}()
 
 	// arrange
+	var foo = func() {}
+	var tester = &tester{t: t}
+
+	// mock
+	var m = NewMocker(tester)
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Fatalf called with different message")
+		assertEquals(t, 3, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, 0, args[1], "tester.Fatalf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Fatalf called with different argument 3")
+	}
+
+	// SUT
+	m.Mock(foo).NotCalled()
+
+	// act
+	foo()
+}
+
+func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsWithErrorInExecution(t *testing.T) {
+	defer func() {
+		recover()
+	}()
+
+	// arrange
+	var foo = func() {}
 	var tester = &tester{t: t}
 
 	// mock
@@ -962,16 +569,21 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsInExecution(t *test
 		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
 		assertEquals(t, "paniced", args[1], "tester.Errorf called with different argument 2")
 	}
-	m.ExpectFunc(foo1, 1, func(int) int {
+	m.Mock(foo).Expects().Returns().SideEffect(func(index int) {
 		panic(errors.New("paniced"))
-	})
+	}).Once()
 
 	// SUT + act
-	_ = foo1(0)
+	foo()
 }
 
-func TestMocker_ShouldReportTestFailureWhenMockMethodIsNotCalledButExpected(t *testing.T) {
+func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsWithMessageInExecution(t *testing.T) {
+	defer func() {
+		recover()
+	}()
+
 	// arrange
+	var foo = func() {}
 	var tester = &tester{t: t}
 
 	// mock
@@ -979,185 +591,228 @@ func TestMocker_ShouldReportTestFailureWhenMockMethodIsNotCalledButExpected(t *t
 
 	// expect
 	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, "[%v] Mocker panicing recovered: %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, "paniced", args[1], "tester.Errorf called with different argument 2")
+	}
+	m.Mock(foo).Expects().Returns().SideEffect(func(index int) {
+		panic("paniced")
+	}).Once()
+
+	// SUT + act
+	foo()
+}
+
+func TestMocker_ShouldReportTestFailureWhenMockFunctionParameterValueNotEqual(t *testing.T) {
+	// arrange
+	var foo = func(_ int) {}
+	var tester = &tester{t: t}
+	var dummyBar = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(tester)
+
+	// expect
+	tester.errorf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Parameter mismatch at call #%v parameter #%v: expect %v, actual %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 5, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, dummyBar+1, args[3], "tester.Errorf called with different argument 4")
+		assertEquals(t, dummyBar, args[4], "tester.Errorf called with different argument 5")
+	}
+	m.Mock(foo).Expects(dummyBar + 1).Returns().Once()
+
+	// SUT + act
+	foo(dummyBar)
+}
+
+func TestMocker_ShouldReportTestFailureWhenMockFunctionParameterValueMismatch(t *testing.T) {
+	// arrange
+	var foo = func(_ int) {}
+	var tester = &tester{t: t}
+	var dummyBar = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(tester)
+
+	// expect
+	tester.errorf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Parameter mismatch at call #%v parameter #%v: matchFunc failed on actual %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 4, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, dummyBar, args[3], "tester.Errorf called with different argument 4")
+	}
+	m.Mock(foo).Expects(Matches(func(value interface{}) bool { return false })).Returns().Once()
+
+	// SUT + act
+	foo(dummyBar)
+}
+
+func TestMocker_ShouldReportTestFailureWhenMockFunctionNormalParameterCountMismatch(t *testing.T) {
+	// arrange
+	var foo = func(_ int) {}
+	var tester = &tester{t: t}
+	var dummyBar = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(tester)
+
+	// expect
+	tester.errorf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Invalid number of parameters at call #%v: expect %v, actual %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 4, len(args), "tester.Errorf called with different number of args")
 		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
 		assertEquals(t, 0, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, 1, args[3], "tester.Errorf called with different argument 4")
 	}
-	m.ExpectMethod(&foo2{}, "bar1", 1, func(int) int {
-		return 0
-	})
+	m.Mock(foo).Expects().Returns().Once()
+
+	// SUT + act
+	foo(dummyBar)
 }
 
-func TestMocker_ShouldReportTestFailureWhenMockMethodIsCalledActualLessThanExpected(t *testing.T) {
+func TestMocker_ShouldReportTestFailureWhenMockFunctionVariadicParameterCountMismatch(t *testing.T) {
 	// arrange
+	var foo = func(_ ...int) {}
 	var tester = &tester{t: t}
+	var dummyBar = rand.Intn(100)
 
 	// mock
 	var m = NewMocker(tester)
 
 	// expect
 	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, 2, args[1], "tester.Errorf called with different argument 2")
-		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
-	}
-	m.ExpectMethod(&foo2{}, "bar1", 2, func(int) int {
-		return 0
-	})
-
-	// SUT
-	var sut = &foo2{}
-
-	// act
-	_ = sut.bar1(0)
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockMethodIsCalledActualMoreThanExpected(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, "[%v] Invalid number of variadic parameters at call #%v: expect %v, actual %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 4, len(args), "tester.Errorf called with different number of args")
 		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
-		assertEquals(t, 2, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, 0, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, 1, args[3], "tester.Errorf called with different argument 4")
 	}
-	m.ExpectMethod(&foo2{}, "bar1", 1, func(int) int {
-		return 0
-	})
+	m.Mock(foo).Expects().Returns().Once()
 
-	// SUT
-	var sut = &foo2{}
-
-	// act
-	_ = sut.bar1(0)
-	_ = sut.bar1(0)
+	// SUT + act
+	foo(dummyBar)
 }
 
-func TestMocker_ShouldReportTestFailureWhenMockMethodIsCalledButNotExpected(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 3, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, 0, args[1], "tester.Errorf called with different argument 2")
-		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
-	}
-	m.ExpectMethod(&foo2{}, "bar1", 0, func(int) int {
-		return 0
-	})
-
-	// SUT
-	var sut = &foo2{}
-
-	// act
-	_ = sut.bar1(0)
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockMethodWithWrongExpectCount(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Expect count must be greather than 0 when already mocked with other expectations", format, "tester.Errorf called with different message")
-		assertEquals(t, 1, len(args), "tester.Errorf called with different number of args")
-	}
-	m.ExpectMethod(&foo2{}, "bar1", 0, func(int) int {
-		return 0
-	}).ExpectMethod(&foo2{}, "bar1", 0, func(int) int {
-		return 0
-	})
-}
-
-func TestMocker_ShouldReportTestFailureWhenMockMethodPanicsInExecution(t *testing.T) {
+func TestMocker_ShouldReportTestFailureWhenMockFunctionReturnCountMismatch(t *testing.T) {
 	defer func() {
 		recover()
 	}()
 
 	// arrange
+	var foo = func() int { return 0 }
 	var tester = &tester{t: t}
 
 	// mock
 	var m = NewMocker(tester)
 
 	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "[%v] Mocker panicing recovered: %v", format, "tester.Errorf called with different message")
-		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, "paniced", args[1], "tester.Errorf called with different argument 2")
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Invalid number of returns at call #%v: expect %v, actual %v", format, "tester.Fatalf called with different message")
+		assertEquals(t, 4, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, 1, args[1], "tester.Fatalf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Fatalf called with different argument 3")
+		assertEquals(t, 0, args[3], "tester.Fatalf called with different argument 4")
 	}
-	m.ExpectMethod(&foo2{}, "bar1", 1, func(int) int {
-		panic("paniced")
-	})
 
 	// SUT
-	var sut = &foo2{}
+	m.Mock(foo).Expects().Returns().Once()
 
 	// act
-	_ = sut.bar1(0)
-}
-
-func TestMock_ShouldReportTestFailureWhenMockPrivateMethodNotFound(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "Method [%v] cannot be located for given target struct [%v]", format, "tester.Errorf called with different message")
-		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, "nobar", args[0], "tester.Errorf called with different argument 1")
-	}
-	m.ExpectMethod(&foo2{}, "nobar", 0, func(int) int {
-		return 0
-	})
-}
-
-func TestMock_ShouldReportTestFailureWhenMockPublicMethodNotFound(t *testing.T) {
-	// arrange
-	var tester = &tester{t: t}
-
-	// mock
-	var m = NewMocker(tester)
-
-	// expect
-	tester.errorf = func(format string, args ...interface{}) {
-		assertEquals(t, "Method [%v] cannot be located for given target struct [%v]", format, "tester.Errorf called with different message")
-		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
-		assertEquals(t, "Nobar", args[0], "tester.Errorf called with different argument 1")
-	}
-	m.ExpectMethod(&foo2{}, "Nobar", 0, func(int) int {
-		return 0
-	})
+	foo()
 }
 
 func TestMocker_ShouldHandleEntryNotFoundScenarioWhenMakeFunc(t *testing.T) {
+	defer func() {
+		recover()
+	}()
+
 	// arrange
+	var foo = func() int { return 0 }
 	var dummyName = "some name"
 	var dummyFuncPtr = uintptr(rand.Intn(100))
-	var dummyMockFunc = func(bar int) int { return bar }
-	var dummyBar = rand.Intn(100)
+	var dummyFuncType = reflect.TypeOf(foo)
 	var tester = &tester{t: t}
 
 	// mock
 	var m = NewMocker(tester).(*mocker)
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "The underlying function or method %v was never setup", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var sut = m.makeFunc(dummyName, dummyFuncPtr, dummyFuncType)
+
+	// act
+	sut.Call([]reflect.Value{})
+}
+
+func TestMocker_ShouldHandleEntryCountMismatchScenarioWhenMakeFuncMock(t *testing.T) {
+	defer func() {
+		recover()
+	}()
+
+	// arrange
+	var foo = func() int { return 0 }
+	var dummyName = "some name"
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var dummyFuncType = reflect.TypeOf(foo)
+	var tester = &tester{t: t}
+
+	// mock
+	var m = NewMocker(tester).(*mocker)
+
+	// stub
+	m.entries[dummyFuncPtr] = &funcEntry{
+		name: dummyName,
+	}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Fatalf called with different message")
+		assertEquals(t, 3, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+		assertEquals(t, 0, args[1], "tester.Fatalf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Fatalf called with different argument 3")
+	}
+
+	// SUT
+	var sut = m.makeFunc(dummyName, dummyFuncPtr, dummyFuncType)
+
+	// act
+	sut.Call([]reflect.Value{})
+}
+
+func TestMocker_ShouldHandleEntryCountMismatchScenarioWhenMakeFuncStub(t *testing.T) {
+	// arrange
+	var foo = func() {}
+	var dummyName = "some name"
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var dummyFuncType = reflect.TypeOf(foo)
+	var tester = &tester{t: t}
+
+	// mock
+	var m = &mocker{
+		tester: tester,
+		entries: map[uintptr]*funcEntry{
+			dummyFuncPtr: {
+				name:   dummyName,
+				stub:   true,
+				expect: 0,
+				actual: 0,
+				mocks: []*mockEntry{
+					{},
+				},
+			},
+		},
+		locker: &sync.Mutex{},
+	}
 
 	// expect
 	tester.errorf = func(format string, args ...interface{}) {
@@ -1169,22 +824,313 @@ func TestMocker_ShouldHandleEntryNotFoundScenarioWhenMakeFunc(t *testing.T) {
 	}
 
 	// SUT
-	var sut = m.makeFunc(dummyName, dummyFuncPtr, dummyMockFunc)
+	var sut = m.makeFunc(dummyName, dummyFuncPtr, dummyFuncType)
 
 	// act
-	sut.Call([]reflect.Value{reflect.ValueOf(dummyBar)})
-
-	// assert
+	sut.Call([]reflect.Value{})
 }
 
-func assertEquals(t *testing.T, expect interface{}, actual interface{}, message string) {
-	if expect == actual {
-		return
+func TestMocker_ShouldReportErrorIfAFormerSetupWasIncompleteWhenCallingANewSetup1(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = false
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was incomplete. Did you miss calling the Once/Twice/Times method in the end?", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
 	}
-	t.Errorf(
-		"%v: expect %v, actual %v",
-		message,
-		expect,
-		actual,
-	)
+
+	// SUT
+	var m = &mocker{
+		tester:  tester,
+		current: &funcEntry{},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfAFormerSetupWasIncompleteWhenCallingANewSetup2(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = false
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was incomplete. Did you miss calling the Once/Twice/Times method in the end?", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		temp:   &mockEntry{},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfAFormerSetupWasMockButCurrentSetupIsStub(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = false
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was a Stub but current setup is a Mock. We do not support mixing Stub and Mock for the same function or method at the moment.", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		entries: map[uintptr]*funcEntry{
+			dummyFuncPtr: {stub: true},
+		},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfAFormerSetupWasStubButCurrentSetupIsMock(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = true
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was a Mock but current setup is a Stub. We do not support mixing Stub and Mock for the same function or method at the moment.", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		entries: map[uintptr]*funcEntry{
+			dummyFuncPtr: {stub: false},
+		},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfAFormerSetupToBeNotCalledButMockAgain(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = false
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was to be not called, therefore no more Mock or Stub can be setup for it now.", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		entries: map[uintptr]*funcEntry{
+			dummyFuncPtr: {
+				nocall: true,
+				stub:   false,
+			},
+		},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfAFormerSetupToBeNotCalledButStubAgain(t *testing.T) {
+	// arrange
+	var dummyName = "some name"
+	var dummyStub = true
+	var dummyFuncPtr = uintptr(rand.Intn(100))
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "A former setup for function or method [%v] was to be not called, therefore no more Mock or Stub can be setup for it now.", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		entries: map[uintptr]*funcEntry{
+			dummyFuncPtr: {
+				nocall: true,
+				stub:   true,
+			},
+		},
+	}
+
+	// act
+	m.setup(dummyName, dummyStub, dummyFuncPtr)
+}
+
+func TestMocker_ShouldReportErrorIfNoFormerSetupWhenCallingExpects(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "Unexpected call to Expects without setting up an anticipated function or method", format, "tester.Fatalf called with different message")
+		assertEquals(t, 0, len(args), "tester.Fatalf called with different number of args")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+	}
+
+	// act
+	m.Expects()
+}
+
+func TestMocker_ShouldReportErrorIfNoFormerSetupWhenCallingNotCalled(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "Unexpected call to NotCalled without setting up an anticipated function or method", format, "tester.Fatalf called with different message")
+		assertEquals(t, 0, len(args), "tester.Fatalf called with different number of args")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+	}
+
+	// act
+	m.NotCalled()
+}
+
+func TestMocker_ShouldReportErrorIfNoFormerSetupWhenCallingReturns(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "Unexpected call to Returns without setting up an anticipated function or method", format, "tester.Fatalf called with different message")
+		assertEquals(t, 0, len(args), "tester.Fatalf called with different number of args")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+	}
+
+	// act
+	m.Returns()
+}
+
+func TestMocker_ShouldReportErrorIfNoFormerSetupWhenCallingSideEffect(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "Unexpected call to SideEffect without setting up an anticipated function or method", format, "tester.Fatalf called with different message")
+		assertEquals(t, 0, len(args), "tester.Fatalf called with different number of args")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+	}
+
+	// act
+	m.SideEffect(nil)
+}
+
+func TestMocker_ShouldReportErrorIfNoFormerSetupWhenCallingTimes(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "Unexpected call to Times without setting up an anticipated function or method", format, "tester.Fatalf called with different message")
+		assertEquals(t, 0, len(args), "tester.Fatalf called with different number of args")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+	}
+
+	// act
+	m.Times(0)
+}
+
+func TestMocker_ShouldReportErrorIfCountIsNegativeWhenCallingTimes(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+	var dummyName = "some name"
+	var dummyCount = -1 - rand.Intn(100)
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "function or method [%v] cannot be mocked for negative [%v] times", format, "tester.Fatalf called with different message")
+		assertEquals(t, 2, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+		assertEquals(t, dummyCount, args[1], "tester.Fatalf called with different argument 2")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		current: &funcEntry{
+			name: dummyName,
+		},
+		temp: &mockEntry{},
+	}
+
+	// act
+	m.Times(dummyCount)
+}
+
+func TestMocker_ShouldReportErrorIfCountIsZeroWhenCallingTimes(t *testing.T) {
+	// arrange
+	var tester = &tester{t: t}
+	var dummyName = "some name"
+
+	// expect
+	tester.fatalf = func(format string, args ...interface{}) {
+		assertEquals(t, "function or method [%v] cannot be mocked for zero times using Times method. Try using NotCalled method instead.", format, "tester.Fatalf called with different message")
+		assertEquals(t, 1, len(args), "tester.Fatalf called with different number of args")
+		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
+	}
+
+	// SUT
+	var m = &mocker{
+		tester: tester,
+		current: &funcEntry{
+			name: dummyName,
+		},
+		temp: &mockEntry{},
+	}
+
+	// act
+	m.Times(0)
 }

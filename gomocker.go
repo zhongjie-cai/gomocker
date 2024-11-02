@@ -9,51 +9,43 @@ import (
 	"unsafe"
 
 	"github.com/agiledragon/gomonkey/v2"
-	"github.com/agiledragon/gomonkey/v2/creflect"
 )
 
-// Mocker is the interface for mocker library
-//
-// It allowing developers to mock either functions or struct methods according to unit test needs
-// refer to README.md for examples on how to use this library
 type Mocker interface {
-	// ExpectFunc allows one to mock either a public or private function visible to the current package
-	//
-	//   expectFunc pass in the pointer to the function to be mocked
-	//   count indicates the number of calls for the expectFunc during test execution; zero can be provided but must be the first expectation; negative values are treated as zeros
-	//   mockFunc pass in the pointer to the function to be actually called during test execution
-	//   returns the mocker instance itself to allow fluent calls to it
-	ExpectFunc(expectFunc interface{}, count int, mockFunc interface{}) Mocker
+	Mock(expectFunc interface{}) Expecter
+	Stub(expectFunc interface{}) Returner
+}
 
-	// FuncCalledCount checks the number of calls made to the expected function as of the time this method is executed
-	//
-	//	expectFunc pass in the pointer to the function to be mocked
-	//	returns the number of calls made to the expected function
-	FuncCalledCount(expectFunc interface{}) int
+type Expecter interface {
+	Expects(parameters ...any) Returner
+	NotCalled()
+}
 
-	// ExpectMethod allows one to mock either a public or private method associated to a struct or interface visible to the current package
-	//
-	//   targetStruct pass in the pointer to the struct or interface instance to be mocked
-	//   expectMethod pass in the name of the method to be mocked
-	//   count indicates the number of calls for the expectFunc during test execution; zero can be provided but must be the first expectation; negative values are treated as zeros
-	//   mockFunc pass in the pointer to the function to be actually called during test execution;
-	//     due to language specs, one additional parameter is expected as the first parameter in the method signature, reflecting the struct pointer or value itself
-	//   returns the mocker instance itself to allow fluent calls to it
-	ExpectMethod(targetStruct interface{}, expectMethod string, count int, mockMethod interface{}) Mocker
+type Returner interface {
+	Returns(values ...any) Counter
+}
 
-	// MethodCalledCount checks the number of calls made to the expected method as of the time this method is executed
-	//
-	//	targetStruct pass in the pointer to the struct or interface instance to be mocked
-	//	expectMethod pass in the name of the method to be mocked
-	//	returns the number of calls made to the expected method
-	MethodCalledCount(targetStruct interface{}, expectMethod string) int
+type Counter interface {
+	SideEffect(callback func(index int)) Counter
+	Once() Mocker
+	Twice() Mocker
+	Times(count int) Mocker
+}
+
+type mockEntry struct {
+	parameters []interface{}
+	returns    []interface{}
+	callback   func(int)
 }
 
 type funcEntry struct {
-	name   string
-	expect int
-	actual int
-	method []reflect.Value
+	name     string
+	stub     bool
+	expect   int
+	actual   int
+	nocall   bool
+	verified bool
+	mocks    []*mockEntry
 }
 
 type mocker struct {
@@ -61,11 +53,12 @@ type mocker struct {
 	patches patcher
 	entries map[uintptr]*funcEntry
 	locker  sync.Locker
+	current *funcEntry
+	temp    *mockEntry
 }
 
 type patcher interface {
 	ApplyCore(target, double reflect.Value) *gomonkey.Patches
-	ApplyCoreOnlyForPrivateMethod(target unsafe.Pointer, double reflect.Value) *gomonkey.Patches
 	Reset()
 }
 
@@ -82,6 +75,23 @@ func NewMocker(tester testing.TB) Mocker {
 	m.tester.Cleanup(m.verifyAll)
 	m.tester.Helper()
 	return m
+}
+
+type parameter struct {
+	isAnything bool
+	matchFunc  func(value interface{}) bool
+}
+
+func Anything() *parameter {
+	return &parameter{
+		isAnything: true,
+	}
+}
+
+func Matches(matchFunc func(value interface{}) bool) *parameter {
+	return &parameter{
+		matchFunc: matchFunc,
+	}
 }
 
 type funcValue struct {
@@ -106,11 +116,11 @@ func (m *mocker) getFuncPointer(expectFunc interface{}) (uintptr, string) {
 }
 
 func (m *mocker) recover(name string) {
+	m.tester.Helper()
 	var result = recover()
 	if result == nil {
 		return
 	}
-	m.tester.Helper()
 	var message string
 	var err, ok = result.(error)
 	if ok {
@@ -121,220 +131,322 @@ func (m *mocker) recover(name string) {
 	m.tester.Errorf("[%v] Mocker panicing recovered: %v", name, message)
 }
 
-func (m *mocker) getTypeName(typeValue reflect.Type) string {
+func (m *mocker) doComparison(name string, calls int, index int, expect interface{}, actual reflect.Value) {
 	m.tester.Helper()
-	switch typeValue.Kind() {
-	case reflect.Array, reflect.Chan, reflect.Map, reflect.Ptr, reflect.Slice:
-		return fmt.Sprint(typeValue.Elem().PkgPath(), ".", typeValue.Elem().Name())
+	var param, ok = expect.(*parameter)
+	if !ok {
+		if actual.Interface() != expect {
+			m.tester.Errorf(
+				"[%v] Parameter mismatch at call #%v parameter #%v: expect %v, actual %v",
+				name,
+				calls,
+				index,
+				expect,
+				actual.Interface(),
+			)
+		}
+		return
 	}
-	return fmt.Sprint(typeValue.PkgPath(), ".", typeValue.Name())
+	if param.isAnything {
+		return
+	}
+	if param.matchFunc != nil {
+		if !param.matchFunc(actual.Interface()) {
+			m.tester.Errorf(
+				"[%v] Parameter mismatch at call #%v parameter #%v: matchFunc failed on actual %v",
+				name,
+				calls,
+				index,
+				actual.Interface(),
+			)
+		}
+	}
 }
 
-func (m *mocker) makeFunc(name string, funcPtr uintptr, mockFunc interface{}) reflect.Value {
+func (m *mocker) compareNormalParameters(name string, calls int, expects []interface{}, actuals []reflect.Value) {
 	m.tester.Helper()
-	var funcType = reflect.TypeOf(mockFunc)
+	if len(expects) != len(actuals) {
+		m.tester.Errorf(
+			"[%v] Invalid number of parameters at call #%v: expect %v, actual %v",
+			name,
+			calls,
+			len(expects),
+			len(actuals),
+		)
+		return
+	}
+	for index, actual := range actuals {
+		m.doComparison(name, calls, index+1, expects[index], actual)
+	}
+}
+
+func (m *mocker) compareVariadicParameters(name string, calls int, expects []interface{}, actuals []reflect.Value) {
+	m.tester.Helper()
+	for index, actual := range actuals {
+		if index != len(actuals)-1 {
+			m.doComparison(name, calls, index+1, expects[index], actual)
+		} else {
+			if actual.Len() != len(expects)-index {
+				m.tester.Errorf(
+					"[%v] Invalid number of variadic parameters at call #%v: expect %v, actual %v",
+					name,
+					calls,
+					len(expects)-index,
+					actual.Len(),
+				)
+				return
+			}
+			for i := index; i < len(expects); i++ {
+				var expect = expects[i]
+				var item = actual.Index(i - index)
+				m.doComparison(name, calls, index+1, expect, item)
+			}
+		}
+	}
+}
+
+func (m *mocker) constructReturns(name string, calls int, count int, returns []interface{}) []reflect.Value {
+	m.tester.Helper()
+	if count != len(returns) {
+		m.tester.Fatalf(
+			"[%v] Invalid number of returns at call #%v: expect %v, actual %v",
+			name,
+			calls,
+			count,
+			len(returns),
+		)
+		return nil
+	}
+	var rets = []reflect.Value{}
+	for _, ret := range returns {
+		rets = append(rets, reflect.ValueOf(ret))
+	}
+	return rets
+}
+
+func (m *mocker) makeFunc(name string, funcPtr uintptr, funcType reflect.Type) reflect.Value {
+	m.tester.Helper()
 	return reflect.MakeFunc(
 		funcType,
 		func(args []reflect.Value) []reflect.Value {
 			m.tester.Helper()
 			defer m.recover(name)
 			var entry, found = m.entries[funcPtr]
-			var funcValue = reflect.ValueOf(mockFunc)
 			if !found {
-				entry = &funcEntry{
-					name:   name,
-					expect: 0,
-					actual: 1,
-					method: make([]reflect.Value, 0),
+				m.tester.Fatalf(
+					"The underlying function or method %v was never setup",
+					name,
+				)
+				return nil
+			}
+			entry.actual++
+			if entry.actual > entry.expect || entry.actual > len(entry.mocks) {
+				if !entry.stub {
+					m.tester.Fatalf(
+						"[%v] Unepxected number of calls: expect %v, actual %v",
+						name,
+						entry.expect,
+						entry.actual,
+					)
+					entry.verified = true
+					return nil
 				}
-				m.entries[funcPtr] = entry
-			} else {
-				entry.actual++
-				if entry.actual <= entry.expect {
-					funcValue = entry.method[entry.actual-1]
+				entry.actual = len(entry.mocks)
+			}
+			var mock = entry.mocks[entry.actual-1]
+			if !entry.stub {
+				if funcType.IsVariadic() {
+					m.compareVariadicParameters(name, entry.actual, mock.parameters, args)
+				} else {
+					m.compareNormalParameters(name, entry.actual, mock.parameters, args)
 				}
 			}
-			if funcType.IsVariadic() {
-				return funcValue.CallSlice(args)
+			if mock.callback != nil {
+				mock.callback(entry.actual)
 			}
-			return funcValue.Call(args)
+			return m.constructReturns(name, entry.actual, funcType.NumOut(), mock.returns)
 		},
 	)
 }
 
-func (m *mocker) setupExpect(name string, funcPtr uintptr, count int, mockFunc interface{}) {
+func (m *mocker) setup(name string, stub bool, funcPtr uintptr) {
 	m.tester.Helper()
-	var mockValue = reflect.ValueOf(mockFunc)
-	var entry, found = m.entries[funcPtr]
-	if found {
-		if count <= 0 {
-			m.tester.Errorf(
-				"[%v] Expect count must be greather than 0 when already mocked with other expectations",
-				name,
-			)
-		} else {
-			entry.expect += count
-			for i := 0; i < count; i++ {
-				entry.method = append(entry.method, mockValue)
-			}
-		}
+	if m.current != nil || m.temp != nil {
+		m.tester.Fatalf(
+			"A former setup for function or method [%v] was incomplete."+
+				" Did you miss calling the Once/Twice/Times method in the end?",
+			name,
+		)
 		return
 	}
-	var method = []reflect.Value{}
-	if count <= 0 {
-		method = append(method, mockValue)
-	} else {
-		for i := 0; i < count; i++ {
-			method = append(method, mockValue)
+	var entry, found = m.entries[funcPtr]
+	if found {
+		if entry.stub != stub {
+			if entry.stub {
+				m.tester.Fatalf(
+					"A former setup for function or method [%v] was a Stub but current setup is a Mock."+
+						" We do not support mixing Stub and Mock for the same function or method at the moment.",
+					name,
+				)
+			} else {
+				m.tester.Fatalf(
+					"A former setup for function or method [%v] was a Mock but current setup is a Stub."+
+						" We do not support mixing Stub and Mock for the same function or method at the moment.",
+					name,
+				)
+			}
+			return
 		}
+		if entry.nocall {
+			m.tester.Fatalf("A former setup for function or method [%v] was to be not called,"+
+				" therefore no more Mock or Stub can be setup for it now.",
+				name,
+			)
+			return
+		}
+		m.current = entry
+		m.temp = &mockEntry{}
+		return
 	}
 	entry = &funcEntry{
 		name:   name,
-		expect: count,
+		stub:   stub,
 		actual: 0,
-		method: method,
+		mocks:  make([]*mockEntry, 0),
 	}
 	m.entries[funcPtr] = entry
+	m.current = entry
+	m.temp = &mockEntry{}
 }
 
-// ExpectFunc allows one to mock either a public or private function visible to the current package
-//
-//	expectFunc pass in the pointer to the function to be mocked
-//	count indicates the number of calls for the expectFunc during test execution; zero can be provided but must be the first expectation; negative values are treated as zeros
-//	mockFunc pass in the pointer to the function to be actually called during test execution
-//	returns the mocker instance itself to allow fluent calls to it
-func (m *mocker) ExpectFunc(expectFunc interface{}, count int, mockFunc interface{}) Mocker {
+func (m *mocker) Mock(expectFunc interface{}) Expecter {
 	m.tester.Helper()
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	var funcPtr, name = m.getFuncPointer(expectFunc)
-	m.setupExpect(name, funcPtr, count, mockFunc)
+	var funcType = reflect.TypeOf(expectFunc)
+	m.setup(name, false, funcPtr)
 	m.patches.ApplyCore(
 		reflect.ValueOf(expectFunc),
-		m.makeFunc(name, funcPtr, mockFunc),
+		m.makeFunc(name, funcPtr, funcType),
 	)
 	return m
 }
 
-// FuncCalledCount checks the number of calls made to the expected function as of the time this method is executed
-//
-//	expectFunc pass in the pointer to the function to be mocked
-//	returns the number of calls made to the expected function
-func (m *mocker) FuncCalledCount(expectFunc interface{}) int {
+func (m *mocker) Stub(expectFunc interface{}) Returner {
 	m.tester.Helper()
 	m.locker.Lock()
 	defer m.locker.Unlock()
-	var funcPtr, _ = m.getFuncPointer(expectFunc)
-	var entry, found = m.entries[funcPtr]
-	if !found {
-		return 0
-	}
-	return entry.actual
-}
-
-func (m *mocker) getMethodPointer(targetStruct interface{}, expectMethod string) (uintptr, reflect.Value, string) {
-	m.tester.Helper()
-	var typeValue, ok = targetStruct.(reflect.Type)
-	if !ok {
-		typeValue = reflect.TypeOf(targetStruct)
-	}
-	var typeName = m.getTypeName(typeValue)
-	var method, success = typeValue.MethodByName(expectMethod)
-	if !success {
-		m.tester.Errorf(
-			"Method [%v] cannot be located for given target struct [%v]",
-			expectMethod,
-			typeName,
-		)
-		return 0, reflect.Value{}, ""
-	}
-	return m.getReflectPointer(method.Func), method.Func, fmt.Sprint(typeName, ".", expectMethod)
-}
-
-func (m *mocker) getPrivateMethodPointer(targetStruct interface{}, expectMethod string) (uintptr, string) {
-	m.tester.Helper()
-	var typeValue, ok = targetStruct.(reflect.Type)
-	if !ok {
-		typeValue = reflect.TypeOf(targetStruct)
-	}
-	var typeName = m.getTypeName(typeValue)
-	var funcPtr, success = creflect.MethodByName(typeValue, expectMethod)
-	if !success {
-		m.tester.Errorf(
-			"Method [%v] cannot be located for given target struct [%v]",
-			expectMethod,
-			typeName,
-		)
-		return 0, ""
-	}
-	return *(*uintptr)(funcPtr), fmt.Sprint(typeName, ".", expectMethod)
-}
-
-func (m *mocker) isPrivateMethod(methodName string) bool {
-	m.tester.Helper()
-	var firstChar = methodName[0]
-	return firstChar >= 'a' && firstChar <= 'z'
-}
-
-// ExpectMethod allows one to mock either a public or private method associated to a struct or interface visible to the current package
-//
-//	targetStruct pass in the pointer to the struct or interface instance to be mocked
-//	expectMethod pass in the name of the method to be mocked
-//	count indicates the number of calls for the expectFunc during test execution; zero can be provided but must be the first expectation; negative values are treated as zeros
-//	mockFunc pass in the pointer to the function to be actually called during test execution;
-//	  due to language specs, one additional parameter is expected as the first parameter in the method signature, reflecting the struct pointer or value itself
-//	returns the mocker instance itself to allow fluent calls to it
-func (m *mocker) ExpectMethod(targetStruct interface{}, expectMethod string, count int, mockMethod interface{}) Mocker {
-	m.tester.Helper()
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	var funcPtr uintptr
-	var name string
-	if m.isPrivateMethod(expectMethod) {
-		funcPtr, name = m.getPrivateMethodPointer(targetStruct, expectMethod)
-		if funcPtr == 0 {
-			return m
-		}
-		var target = unsafe.Pointer(&funcPtr)
-		m.patches.ApplyCoreOnlyForPrivateMethod(target, m.makeFunc(name, funcPtr, mockMethod))
-	} else {
-		var funcValue reflect.Value
-		funcPtr, funcValue, name = m.getMethodPointer(targetStruct, expectMethod)
-		if funcPtr == 0 {
-			return m
-		}
-		m.patches.ApplyCore(funcValue, m.makeFunc(name, funcPtr, mockMethod))
-	}
-	m.setupExpect(name, funcPtr, count, mockMethod)
+	var funcPtr, name = m.getFuncPointer(expectFunc)
+	var funcType = reflect.TypeOf(expectFunc)
+	m.setup(name, true, funcPtr)
+	m.patches.ApplyCore(
+		reflect.ValueOf(expectFunc),
+		m.makeFunc(name, funcPtr, funcType),
+	)
 	return m
 }
 
-// MethodCalledCount checks the number of calls made to the expected method as of the time this method is executed
-//
-//	targetStruct pass in the pointer to the struct or interface instance to be mocked
-//	expectMethod pass in the name of the method to be mocked
-//	returns the number of calls made to the expected method
-func (m *mocker) MethodCalledCount(targetStruct interface{}, expectMethod string) int {
+func (m *mocker) Expects(parameters ...any) Returner {
 	m.tester.Helper()
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	var funcPtr uintptr
-	if m.isPrivateMethod(expectMethod) {
-		funcPtr, _ = m.getPrivateMethodPointer(targetStruct, expectMethod)
-	} else {
-		funcPtr, _, _ = m.getMethodPointer(targetStruct, expectMethod)
+	if m.current == nil || m.temp == nil {
+		m.tester.Fatalf(
+			"Unexpected call to Expects without setting up an anticipated function or method",
+		)
+		return m
 	}
-	var entry, found = m.entries[funcPtr]
-	if !found {
-		return 0
+	m.temp.parameters = parameters
+	return m
+}
+
+func (m *mocker) NotCalled() {
+	m.tester.Helper()
+	if m.current == nil || m.temp == nil {
+		m.tester.Fatalf(
+			"Unexpected call to NotCalled without setting up an anticipated function or method",
+		)
+		return
 	}
-	return entry.actual
+	m.current.nocall = true
+	m.current.expect = 0
+	m.current.mocks = []*mockEntry{{}}
+	m.temp = nil
+	m.current = nil
+}
+
+func (m *mocker) Returns(values ...any) Counter {
+	m.tester.Helper()
+	if m.current == nil || m.temp == nil {
+		m.tester.Fatalf(
+			"Unexpected call to Returns without setting up an anticipated function or method",
+		)
+		return m
+	}
+	m.temp.returns = values
+	return m
+}
+
+func (m *mocker) SideEffect(callback func(index int)) Counter {
+	m.tester.Helper()
+	if m.current == nil || m.temp == nil {
+		m.tester.Fatalf(
+			"Unexpected call to SideEffect without setting up an anticipated function or method",
+		)
+		return m
+	}
+	m.temp.callback = callback
+	return m
+}
+
+func (m *mocker) Once() Mocker {
+	m.tester.Helper()
+	return m.Times(1)
+}
+
+func (m *mocker) Twice() Mocker {
+	m.tester.Helper()
+	return m.Times(2)
+}
+
+func (m *mocker) Times(count int) Mocker {
+	m.tester.Helper()
+	if m.current == nil || m.temp == nil {
+		m.tester.Fatalf(
+			"Unexpected call to Times without setting up an anticipated function or method",
+		)
+		return m
+	}
+	if count < 0 {
+		m.tester.Fatalf(
+			"function or method [%v] cannot be mocked for negative [%v] times",
+			m.current.name,
+			count,
+		)
+		return m
+	} else if count == 0 {
+		m.tester.Fatalf(
+			"function or method [%v] cannot be mocked for zero times using Times method."+
+				" Try using NotCalled method instead.",
+			m.current.name,
+		)
+		return m
+	}
+	m.current.expect += count
+	for i := 0; i < count; i++ {
+		m.current.mocks = append(m.current.mocks, m.temp)
+	}
+	m.temp = nil
+	m.current = nil
+	return m
 }
 
 func (m *mocker) verifyAll() {
 	m.tester.Helper()
 	for _, entry := range m.entries {
-		if entry.expect != entry.actual {
+		if entry.verified {
+			continue
+		}
+		if !entry.stub && entry.expect != entry.actual {
 			m.tester.Errorf(
 				"[%v] Unepxected number of calls: expect %v, actual %v",
 				entry.name,
