@@ -11,24 +11,72 @@ import (
 	"github.com/agiledragon/gomonkey/v2"
 )
 
+// Mocker is the major interface for mocker library
+//
+// It allowing developers to mock functions or struct methods for unit tests
+//
+//	refer to README.md for more details and examples
 type Mocker interface {
+	// Mock allows one to mock either a function or a struct method visible to the current package
+	//
+	//   expectFunc pass in the pointer to the function to be mocked
+	//   returns an Expecter instance to allow setting up parameter expectations
 	Mock(expectFunc interface{}) Expecter
+	// Stub allows one to stub either a function or a struct method visible to the current package
+	//
+	//   expectFunc pass in the pointer to the function to be mocked
+	//   returns a Returner instance to allow setting up return expectations
 	Stub(expectFunc interface{}) Returner
 }
 
+// Expecter is the interface for setting up parameter expectations
+//
+//	refer to README.md for more details and examples
 type Expecter interface {
+	// Expects allows one to setup a list of parameters to be verified during a function or a struct method call
+	//
+	//   parameters pass in the list of parameters to be verified,
+	//     just like how they are normally passed into the original function or struct method
+	//   returns a Returner instance to allow setting up return expectations
 	Expects(parameters ...any) Returner
+	// NotCalled verifies that no call is expected to the underlying function or struct method
+	//   the underlying function or struct method cannot be mocked or stubbed again in the same test
+	//   this completes the current Mock sequence, as well as overrides any previous mock or stub
 	NotCalled()
 }
 
+// Returner is the interface for setting up return expectations
+//
+//	refer to README.md for more details and examples
 type Returner interface {
+	// Returns allows one to setup a list of values to be returned after a function or a struct method call
+	//
+	//   values pass in the list of values to be returned,
+	//     just like how they are normally returned from the original function or struct method
+	//   returns a Counter instance to allow setting up execution expectations
 	Returns(values ...any) Counter
 }
 
+// Returner is the interface for setting up execution expectations
+//
+//	refer to README.md for more details and examples
 type Counter interface {
+	// SideEffect allows one to setup a callback function that is called during expectation verification
+	//   note that there is only one side effect for each mock or stub, and the newest overrides previous ones
+	//
+	//   callback pass in the customized callback function with an integer parameter `index`
+	//     this parameter indicates the number of executions done so far including the current one
+	//   returns the same Counter instance to allow setting up further execution expectations
 	SideEffect(callback func(index int)) Counter
+	// Once allows one to quickly setup only once execution for the current mock or stub
+	//   this is equivalent to call Times(1)
 	Once() Mocker
+	// Once allows one to quickly setup only twice executions for the current mock or stub
+	//   this is equivalent to call Times(2)
 	Twice() Mocker
+	// Times allows one to setup the number of executions for the current mock or stub
+	//
+	//   count pass in the number of executions expected, and must be a positive number
 	Times(count int) Mocker
 }
 
@@ -64,7 +112,7 @@ type patcher interface {
 
 // NewMocker creates a new instance of mocker using the provided tester interface
 //
-//	tester: simply pass in the Golang testing struct from a test method
+//	tester simply pass in the Golang testing struct from a test method
 func NewMocker(tester testing.TB) Mocker {
 	var m = &mocker{
 		tester:  tester,
@@ -82,12 +130,18 @@ type parameter struct {
 	matchFunc  func(value interface{}) bool
 }
 
+// Anything creates a parameter matcher that simply bypasses the check
 func Anything() *parameter {
 	return &parameter{
 		isAnything: true,
 	}
 }
 
+// Matches creates a parameter matcher using the provided match function
+//
+//	matchFunc pass in the function that customizes the check for a particular parameter
+//	  the original parameter is wrapped into an interface and is given as `value` here
+//	  returning false would cause the corresponding test to fail
 func Matches(matchFunc func(value interface{}) bool) *parameter {
 	return &parameter{
 		matchFunc: matchFunc,
@@ -319,6 +373,10 @@ func (m *mocker) setup(name string, stub bool, funcPtr uintptr) {
 	m.temp = &mockEntry{}
 }
 
+// Mock allows one to mock either a function or a struct method visible to the current package
+//
+//	expectFunc pass in the pointer to the function to be mocked
+//	returns an Expecter instance to allow setting up parameter expectations
 func (m *mocker) Mock(expectFunc interface{}) Expecter {
 	m.tester.Helper()
 	m.locker.Lock()
@@ -333,6 +391,10 @@ func (m *mocker) Mock(expectFunc interface{}) Expecter {
 	return m
 }
 
+// Stub allows one to stub either a function or a struct method visible to the current package
+//
+//	expectFunc pass in the pointer to the function to be mocked
+//	returns a Returner instance to allow setting up return expectations
 func (m *mocker) Stub(expectFunc interface{}) Returner {
 	m.tester.Helper()
 	m.locker.Lock()
@@ -347,6 +409,11 @@ func (m *mocker) Stub(expectFunc interface{}) Returner {
 	return m
 }
 
+// Expects allows one to setup a list of parameters to be verified during a function or a struct method call
+//
+//	parameters pass in the list of parameters to be verified,
+//	  just like how they are normally passed into the original function or struct method
+//	returns a Returner instance to allow setting up return expectations
 func (m *mocker) Expects(parameters ...any) Returner {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
@@ -359,6 +426,10 @@ func (m *mocker) Expects(parameters ...any) Returner {
 	return m
 }
 
+// NotCalled verifies that no call is expected to the underlying function or struct method
+//
+//	the underlying function or struct method cannot be mocked or stubbed again in the same test
+//	this completes the current Mock sequence, as well as overrides any previous mock or stub
 func (m *mocker) NotCalled() {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
@@ -374,6 +445,11 @@ func (m *mocker) NotCalled() {
 	m.current = nil
 }
 
+// Returns allows one to setup a list of values to be returned after a function or a struct method call
+//
+//	values pass in the list of values to be returned,
+//	  just like how they are normally returned from the original function or struct method
+//	returns a Counter instance to allow setting up execution expectations
 func (m *mocker) Returns(values ...any) Counter {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
@@ -386,6 +462,13 @@ func (m *mocker) Returns(values ...any) Counter {
 	return m
 }
 
+// SideEffect allows one to setup a callback function that is called during expectation verification
+//
+//	note that there is only one side effect for each mock or stub, and the newest overrides previous ones
+//
+//	callback pass in the customized callback function with an integer parameter `index`
+//	  this parameter indicates the number of executions done so far including the current one
+//	returns the same Counter instance to allow setting up further execution expectations
 func (m *mocker) SideEffect(callback func(index int)) Counter {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
@@ -398,16 +481,25 @@ func (m *mocker) SideEffect(callback func(index int)) Counter {
 	return m
 }
 
+// Once allows one to quickly setup only once execution for the current mock or stub
+//
+//	this is equivalent to call Times(1)
 func (m *mocker) Once() Mocker {
 	m.tester.Helper()
 	return m.Times(1)
 }
 
+// Once allows one to quickly setup only twice executions for the current mock or stub
+//
+//	this is equivalent to call Times(2)
 func (m *mocker) Twice() Mocker {
 	m.tester.Helper()
 	return m.Times(2)
 }
 
+// Times allows one to setup the number of executions for the current mock or stub
+//
+//	count pass in the number of executions expected, and must be a positive number
 func (m *mocker) Times(count int) Mocker {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
