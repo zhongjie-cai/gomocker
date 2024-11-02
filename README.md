@@ -9,7 +9,16 @@ A mocker library for Go inspired by gomonkey features, allowing developers to mo
 
 **Important Note: must set the build flag `-gcflags=all=-l` so as to make this library properly functional.**
 
-### Scenario 1 - Mock a function (either private or public, as long as accessible)
+- [gomocker](#gomocker)
+    - [Scenario 1 - mock a function (either private or public, as long as accessible)](#scenario-1---mock-a-function-either-private-or-public-as-long-as-accessible)
+    - [Scenario 2 - mock a struct method (either private or public, as long as accessible)](#scenario-2---mock-a-struct-method-either-private-or-public-as-long-as-accessible)
+    - [Scenario 3 - mock a public interface method](#scenario-3---mock-a-public-interface-method)
+    - [Scenario 4 - mock a function / method with side effects](#scenario-4---mock-a-function--method-with-side-effects)
+    - [Scenario 5 - mock a function / method to be not called](#scenario-5---mock-a-function--method-to-be-not-called)
+    - [Scenario 6 - bypass parameter matching](#scenario-6---bypass-parameter-matching)
+    - [Scenario 7 - customize parameter matching](#scenario-7---customize-parameter-matching)
+
+### Scenario 1 - mock a function (either private or public, as long as accessible)
 
 With the following function `foo` in code:
 
@@ -37,7 +46,7 @@ m.Mock(
 )
 ```
 
-### Scenario 2 - Mock a struct method (either private or public, as long as accessible)
+### Scenario 2 - mock a struct method (either private or public, as long as accessible)
 
 With the following struct `foo` with method `bar` in code:
 
