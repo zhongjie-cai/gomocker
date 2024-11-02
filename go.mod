@@ -1,4 +1,4 @@
-module github.com/zhongjie-cai/gomocker
+module github.com/zhongjie-cai/gomocker/v2
 
 go 1.23
 
