@@ -253,9 +253,10 @@ func TestMocker_ShouldMockVariadicFunction(t *testing.T) {
 
 func TestMocker_ShouldStubFunctionWithSideEffect(t *testing.T) {
 	// arrange
-	var foo = func() int {
+	var foo = func(int) int {
 		return 0
 	}
+	var dummyValue = rand.Intn(100)
 	var dummyResult = rand.Intn(100)
 	var dummySideEffect = false
 
@@ -263,13 +264,15 @@ func TestMocker_ShouldStubFunctionWithSideEffect(t *testing.T) {
 	var m = NewMocker(t)
 
 	// expect
-	m.Stub(foo).Returns(dummyResult).SideEffect(func(index int) {
+	m.Stub(foo).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
 		dummySideEffect = true
 		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 1, len(params), "foo call side effect params count different")
+		assertEquals(t, dummyValue, params[0], "foo call side effect param 1 different")
 	}).Once()
 
 	// SUT + act
-	var result = foo()
+	var result = foo(dummyValue)
 
 	// assert
 	assertEquals(t, dummyResult, result, "foo call result different")
@@ -278,9 +281,10 @@ func TestMocker_ShouldStubFunctionWithSideEffect(t *testing.T) {
 
 func TestMocker_ShouldMockFunctionWithSideEffect(t *testing.T) {
 	// arrange
-	var foo = func() int {
+	var foo = func(int) int {
 		return 0
 	}
+	var dummyValue = rand.Intn(100)
 	var dummyResult = rand.Intn(100)
 	var dummySideEffect = false
 
@@ -288,13 +292,15 @@ func TestMocker_ShouldMockFunctionWithSideEffect(t *testing.T) {
 	var m = NewMocker(t)
 
 	// expect
-	m.Mock(foo).Expects().Returns(dummyResult).SideEffect(func(index int) {
+	m.Mock(foo).Expects(dummyValue).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
 		dummySideEffect = true
 		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 1, len(params), "foo call side effect params count different")
+		assertEquals(t, dummyValue, params[0], "foo call side effect param 1 different")
 	}).Once()
 
 	// SUT + act
-	var result = foo()
+	var result = foo(dummyValue)
 
 	// assert
 	assertEquals(t, dummyResult, result, "foo call result different")
@@ -425,6 +431,64 @@ func TestMocker_ShouldMockStructMethod(t *testing.T) {
 	assertEquals(t, dummyResult, result, "testObject.Foo call result different")
 }
 
+func TestMocker_ShouldStubStructMethodWithSideEffects(t *testing.T) {
+	// arrange
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT + act
+	var sut = &testObject{}
+
+	// expect
+	m.Stub((*testObject).Foo).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 2, len(params), "foo call side effect params count different")
+		assertEquals(t, sut, params[0], "foo call side effect param 1 different")
+		assertEquals(t, dummyBar, params[1], "foo call side effect param 2 different")
+	}).Once()
+
+	// act
+	var result = sut.Foo(dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "testObject.Foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
+}
+
+func TestMocker_ShouldMockStructMethodWithSideEffect(t *testing.T) {
+	// arrange
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// SUT
+	var sut = &testObject{}
+
+	// expect
+	m.Mock((*testObject).Foo).Expects(sut, dummyBar).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 2, len(params), "foo call side effect params count different")
+		assertEquals(t, sut, params[0], "foo call side effect param 1 different")
+		assertEquals(t, dummyBar, params[1], "foo call side effect param 2 different")
+	}).Once()
+
+	// act
+	var result = sut.Foo(dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "testObject.Foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
+}
+
 func TestMocker_ShouldStubInterfaceMethod(t *testing.T) {
 	// arrange
 	type TestInterface interface {
@@ -479,6 +543,78 @@ func TestMocker_ShouldMockInterfaceMethod(t *testing.T) {
 
 	// assert
 	assertEquals(t, dummyResult, result, "foo call result different")
+}
+
+func TestMocker_ShouldStubInterfaceMethodWithSideEffect(t *testing.T) {
+	// arrange
+	type TestInterface interface {
+		Foo(int) int
+	}
+	var foo = func(i TestInterface, bar int) int {
+		return i.Foo(bar)
+	}
+	type testInterface struct {
+		TestInterface
+	}
+	var dummyTestObject = &testInterface{}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Stub((*testInterface).Foo).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 2, len(params), "foo call side effect params count different")
+		assertEquals(t, dummyTestObject, params[0], "foo call side effect param 1 different")
+		assertEquals(t, dummyBar, params[1], "foo call side effect param 2 different")
+	}).Once()
+
+	// SUT + act
+	var result = foo(dummyTestObject, dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
+}
+
+func TestMocker_ShouldMockInterfaceMethodWithSideEffect(t *testing.T) {
+	// arrange
+	type TestInterface interface {
+		Foo(int) int
+	}
+	var foo = func(i TestInterface, bar int) int {
+		return i.Foo(bar)
+	}
+	type testInterface struct {
+		TestInterface
+	}
+	var dummyTestObject = &testInterface{}
+	var dummyBar = rand.Intn(100)
+	var dummyResult = rand.Intn(100)
+	var dummySideEffect = false
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock((*testInterface).Foo).Expects(dummyTestObject, dummyBar).Returns(dummyResult).SideEffect(func(index int, params ...interface{}) {
+		dummySideEffect = true
+		assertEquals(t, 1, index, "foo call side effect index different")
+		assertEquals(t, 2, len(params), "foo call side effect params count different")
+		assertEquals(t, dummyTestObject, params[0], "foo call side effect param 1 different")
+		assertEquals(t, dummyBar, params[1], "foo call side effect param 2 different")
+	}).Once()
+
+	// SUT + act
+	var result = foo(dummyTestObject, dummyBar)
+
+	// assert
+	assertEquals(t, dummyResult, result, "foo call result different")
+	assertEquals(t, true, dummySideEffect, "foo call side effect different")
 }
 
 type tester struct {
@@ -569,7 +705,7 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsWithErrorInExecutio
 		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
 		assertEquals(t, "paniced", args[1], "tester.Errorf called with different argument 2")
 	}
-	m.Mock(foo).Expects().Returns().SideEffect(func(index int) {
+	m.Mock(foo).Expects().Returns().SideEffect(func(index int, params ...interface{}) {
 		panic(errors.New("paniced"))
 	}).Once()
 
@@ -595,7 +731,7 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionPanicsWithMessageInExecut
 		assertEquals(t, 2, len(args), "tester.Errorf called with different number of args")
 		assertEquals(t, "paniced", args[1], "tester.Errorf called with different argument 2")
 	}
-	m.Mock(foo).Expects().Returns().SideEffect(func(index int) {
+	m.Mock(foo).Expects().Returns().SideEffect(func(index int, params ...interface{}) {
 		panic("paniced")
 	}).Once()
 

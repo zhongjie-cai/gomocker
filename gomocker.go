@@ -66,8 +66,9 @@ type Counter interface {
 	//
 	//   callback pass in the customized callback function with an integer parameter `index`
 	//     this parameter indicates the number of executions done so far including the current one
+	//     and `params` are the exact arguments passed into the underlying function or struct method
 	//   returns the same Counter instance to allow setting up further execution expectations
-	SideEffect(callback func(index int)) Counter
+	SideEffect(callback func(index int, params ...interface{})) Counter
 	// Once allows one to quickly setup only once execution for the current mock or stub
 	//   this is equivalent to call Times(1)
 	Once() Mocker
@@ -83,7 +84,7 @@ type Counter interface {
 type mockEntry struct {
 	parameters []interface{}
 	returns    []interface{}
-	callback   func(int)
+	callback   func(int, ...interface{})
 }
 
 type funcEntry struct {
@@ -316,7 +317,11 @@ func (m *mocker) makeFunc(name string, funcPtr uintptr, funcType reflect.Type) r
 				}
 			}
 			if mock.callback != nil {
-				mock.callback(entry.actual)
+				var params = []interface{}{}
+				for _, arg := range args {
+					params = append(params, arg.Interface())
+				}
+				mock.callback(entry.actual, params...)
 			}
 			return m.constructReturns(name, entry.actual, funcType.NumOut(), mock.returns)
 		},
@@ -468,8 +473,9 @@ func (m *mocker) Returns(values ...any) Counter {
 //
 //	callback pass in the customized callback function with an integer parameter `index`
 //	  this parameter indicates the number of executions done so far including the current one
+//	  and `params` are the exact arguments passed into the underlying function or struct method
 //	returns the same Counter instance to allow setting up further execution expectations
-func (m *mocker) SideEffect(callback func(index int)) Counter {
+func (m *mocker) SideEffect(callback func(index int, params ...interface{})) Counter {
 	m.tester.Helper()
 	if m.current == nil || m.temp == nil {
 		m.tester.Fatalf(

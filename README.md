@@ -145,10 +145,12 @@ m.Mock(
 ).Returns(
     // place your anticipated returns here
 ).SideEffect(
-    func(index int) {
+    func(index int, params ...interface{}) {
         // place your side effect code logic here
         // the given parameter `index` means the number of calls (including the current call)
         //   to the mocked or stubbed function happened so far
+        // the given parameter `params` are the exact arguments passed into the underlying
+        //   function or struct method during the test act
 	}
 ).Once(
     // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
