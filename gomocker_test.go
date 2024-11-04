@@ -167,6 +167,29 @@ func TestMocker_ShouldMockFunctionMultipleTimes(t *testing.T) {
 	assertEquals(t, dummyResult, result5, "foo call result 5 different")
 }
 
+func TestMocker_ShouldMockFunctionReturningInterfaceType(t *testing.T) {
+	// arrange
+	type i interface {
+		do()
+	}
+	var foo = func(bar int) i {
+		return nil
+	}
+	var dummyBar = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects(dummyBar).Returns(nil).Once()
+
+	// SUT + act
+	var result = foo(dummyBar)
+
+	// assert
+	assertEquals(t, nil, result, "foo call result different")
+}
+
 func TestMocker_ShouldStubPublicFunction(t *testing.T) {
 	// arrange
 	var dummyMessage = "some random message"
