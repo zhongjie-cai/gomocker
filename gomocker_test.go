@@ -167,6 +167,25 @@ func TestMocker_ShouldMockFunctionMultipleTimes(t *testing.T) {
 	assertEquals(t, dummyResult, result5, "foo call result 5 different")
 }
 
+func TestMocker_ShouldMockFunctionWithNilParameter(t *testing.T) {
+	// arrange
+	var foo = func(bar *int) int {
+		return 0
+	}
+
+	// mock
+	var m = NewMocker(t)
+
+	// expect
+	m.Mock(foo).Expects(nil).Returns(1).Once()
+
+	// SUT + act
+	var result = foo(nil)
+
+	// assert
+	assertEquals(t, 1, result, "foo call result different")
+}
+
 func TestMocker_ShouldMockFunctionReturningInterfaceType(t *testing.T) {
 	// arrange
 	type i interface {
@@ -784,6 +803,30 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionParameterValueNotEqual(t 
 
 	// SUT + act
 	foo(dummyBar)
+}
+
+func TestMocker_ShouldReportTestFailureWhenMockFunctionParameterNilNotEqual(t *testing.T) {
+	// arrange
+	var foo = func(_ *int) {}
+	var tester = &tester{t: t}
+	var dummyBar = rand.Intn(100)
+
+	// mock
+	var m = NewMocker(tester)
+
+	// expect
+	tester.errorf = func(format string, args ...interface{}) {
+		assertEquals(t, "[%v] Parameter mismatch at call #%v parameter #%v: expect %v, actual %v", format, "tester.Errorf called with different message")
+		assertEquals(t, 5, len(args), "tester.Errorf called with different number of args")
+		assertEquals(t, 1, args[1], "tester.Errorf called with different argument 2")
+		assertEquals(t, 1, args[2], "tester.Errorf called with different argument 3")
+		assertEquals(t, nil, args[3], "tester.Errorf called with different argument 4")
+		assertEquals(t, &dummyBar, args[4], "tester.Errorf called with different argument 5")
+	}
+	m.Mock(foo).Expects(nil).Returns().Once()
+
+	// SUT + act
+	foo(&dummyBar)
 }
 
 func TestMocker_ShouldReportTestFailureWhenMockFunctionParameterValueMismatch(t *testing.T) {

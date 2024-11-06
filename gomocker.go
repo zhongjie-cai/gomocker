@@ -190,7 +190,18 @@ func (m *mocker) doComparison(name string, calls int, index int, expect interfac
 	m.tester.Helper()
 	var param, ok = expect.(*parameter)
 	if !ok {
-		if !reflect.DeepEqual(actual.Interface(), expect) {
+		if expect == nil {
+			if actual.IsValid() && !actual.IsNil() {
+				m.tester.Errorf(
+					"[%v] Parameter mismatch at call #%v parameter #%v: expect %v, actual %v",
+					name,
+					calls,
+					index,
+					expect,
+					actual.Interface(),
+				)
+			}
+		} else if !reflect.DeepEqual(actual.Interface(), expect) {
 			m.tester.Errorf(
 				"[%v] Parameter mismatch at call #%v parameter #%v: expect %v, actual %v",
 				name,
