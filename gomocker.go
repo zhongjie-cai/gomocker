@@ -271,18 +271,27 @@ func (m *mocker) compareVariadicParameters(name string, calls int, expects []int
 	}
 }
 
+func (m *mocker) returnZeros(funcType reflect.Type) []reflect.Value {
+	var count = funcType.NumOut()
+	var rets = make([]reflect.Value, 0, count)
+	for i := 0; i < count; i++ {
+		rets = append(rets, reflect.Zero(funcType.Out(i)))
+	}
+	return rets
+}
+
 func (m *mocker) constructReturns(name string, calls int, funcType reflect.Type, returns []interface{}) []reflect.Value {
 	m.tester.Helper()
 	var count = funcType.NumOut()
 	if count != len(returns) {
-		m.tester.Fatalf(
+		m.tester.Errorf(
 			"[%v] Invalid number of returns at call #%v: expect %v, actual %v",
 			name,
 			calls,
 			count,
 			len(returns),
 		)
-		return nil
+		return m.returnZeros(funcType)
 	}
 	var rets = []reflect.Value{}
 	for i, ret := range returns {
@@ -313,14 +322,14 @@ func (m *mocker) makeFunc(name string, funcPtr uintptr, funcType reflect.Type) r
 			entry.actual++
 			if entry.actual > entry.expect || entry.actual > len(entry.mocks) {
 				if !entry.stub {
-					m.tester.Fatalf(
+					m.tester.Errorf(
 						"[%v] Unepxected number of calls: expect %v, actual %v",
 						name,
 						entry.expect,
 						entry.actual,
 					)
 					entry.verified = true
-					return nil
+					return m.returnZeros(funcType)
 				}
 				entry.actual = len(entry.mocks)
 			}

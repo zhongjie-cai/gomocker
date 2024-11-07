@@ -703,10 +703,6 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionIsNotCalledButExpected(t 
 }
 
 func TestMocker_ShouldReportTestFailureWhenMockFunctionIsCalledButNotExpected(t *testing.T) {
-	defer func() {
-		recover()
-	}()
-
 	// arrange
 	var foo = func() {}
 	var tester = &tester{t: t}
@@ -715,7 +711,7 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionIsCalledButNotExpected(t 
 	var m = NewMocker(tester)
 
 	// expect
-	tester.fatalf = func(format string, args ...interface{}) {
+	tester.errorf = func(format string, args ...interface{}) {
 		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Fatalf called with different message")
 		assertEquals(t, 3, len(args), "tester.Fatalf called with different number of args")
 		assertEquals(t, 0, args[1], "tester.Fatalf called with different argument 2")
@@ -899,10 +895,6 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionVariadicParameterCountMis
 }
 
 func TestMocker_ShouldReportTestFailureWhenMockFunctionReturnCountMismatch(t *testing.T) {
-	defer func() {
-		recover()
-	}()
-
 	// arrange
 	var foo = func() int { return 0 }
 	var tester = &tester{t: t}
@@ -911,7 +903,7 @@ func TestMocker_ShouldReportTestFailureWhenMockFunctionReturnCountMismatch(t *te
 	var m = NewMocker(tester)
 
 	// expect
-	tester.fatalf = func(format string, args ...interface{}) {
+	tester.errorf = func(format string, args ...interface{}) {
 		assertEquals(t, "[%v] Invalid number of returns at call #%v: expect %v, actual %v", format, "tester.Fatalf called with different message")
 		assertEquals(t, 4, len(args), "tester.Fatalf called with different number of args")
 		assertEquals(t, 1, args[1], "tester.Fatalf called with different argument 2")
@@ -956,10 +948,6 @@ func TestMocker_ShouldHandleEntryNotFoundScenarioWhenMakeFunc(t *testing.T) {
 }
 
 func TestMocker_ShouldHandleEntryCountMismatchScenarioWhenMakeFuncMock(t *testing.T) {
-	defer func() {
-		recover()
-	}()
-
 	// arrange
 	var foo = func() int { return 0 }
 	var dummyName = "some name"
@@ -976,7 +964,7 @@ func TestMocker_ShouldHandleEntryCountMismatchScenarioWhenMakeFuncMock(t *testin
 	}
 
 	// expect
-	tester.fatalf = func(format string, args ...interface{}) {
+	tester.errorf = func(format string, args ...interface{}) {
 		assertEquals(t, "[%v] Unepxected number of calls: expect %v, actual %v", format, "tester.Fatalf called with different message")
 		assertEquals(t, 3, len(args), "tester.Fatalf called with different number of args")
 		assertEquals(t, dummyName, args[0], "tester.Fatalf called with different argument 1")
