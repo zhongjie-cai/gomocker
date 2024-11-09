@@ -38,6 +38,7 @@ jobs:
         uses: tj-actions/coverage-badge-go@v2
         if: ${{ runner.os == 'Linux' && matrix.go == '1.23' }} # Runs this on only one of the ci builds.
         with:
+          green: 100
           filename: coverage.out
 
       - name: Verify Changed files
