@@ -144,14 +144,18 @@ m.Mock(
     // place your expected parameters here
 ).Returns(
     // place your anticipated returns here
-).SideEffect(
-    func(index int, params ...interface{}) {
+).SideEffects(
+    // this creates a general side effect that happens upon each `foo` call
+    gomocker.GeneralSideEffect(0, func() {
         // place your side effect code logic here
-        // the given parameter `index` means the number of calls (including the current call)
-        //   to the mocked or stubbed function happened so far
-        // the given parameter `params` are the exact arguments passed into the underlying
-        //   function or struct method during the test act
-	}
+    }),
+    // this creates a side effect that happens to the 1st parameter upon the 1st `foo` call
+    gomocker.ParamSideEffect(1, 1, func(value *int)) {
+        // place your side effect code logic here
+        // the given parameter `value` should be of the same type as in `foo`'s definition
+        // this is usually helpful to alter the data of the original parameter from the call
+        // when it is passed in as a pointer instead of value
+    }
 ).Once(
     // or choose Twice, Times method instead, this function must be called to complete a Mock or Stub
 )
@@ -196,10 +200,11 @@ var m = gomocker.NewMocker(t)
 
 // expect
 m.Mock(foo).Expects(
-    gomocker.Matches(func(value interface{}) bool) {
+    gomocker.Matches(func(value int) bool) {
         // this allows customization of the check for a particular parameter
-        //   the original parameter is wrapped into an interface and is given as `value` here
-        //   returning false would cause the corresponding test to fail
+        //   the matching function shall be defined using generics for the underlying parameter type
+        //   and can be directly used for comparison logic as needed
+        return value == 123
     },
 ).Returns()
 ```
