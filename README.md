@@ -1,7 +1,7 @@
 # gomocker
 
 [![Test](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml/badge.svg)](https://github.com/zhongjie-cai/gomocker/actions/workflows/ci.yaml)
-![Coverage](https://img.shields.io/badge/Coverage-100.0%25-brightgreen)
+[![Coverage Status](https://coveralls.io/repos/github/zhongjie-cai/gomocker/badge.svg?branch=main)](https://coveralls.io/github/zhongjie-cai/gomocker?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/zhongjie-cai/gomocker)](https://goreportcard.com/report/github.com/zhongjie-cai/gomocker)
 [![Go Reference](https://pkg.go.dev/badge/github.com/zhongjie-cai/gomocker.svg)](https://pkg.go.dev/github.com/zhongjie-cai/gomocker)
 
@@ -10,13 +10,13 @@ A mocker library for Go inspired by gomonkey features, allowing developers to mo
 **Important Note: must set the build flag `-gcflags=all=-l` so as to make this library properly functional.**
 
 - [gomocker](#gomocker)
-    - [Scenario 1 - mock a function (either private or public, as long as accessible)](#scenario-1---mock-a-function-either-private-or-public-as-long-as-accessible)
-    - [Scenario 2 - mock a struct method (either private or public, as long as accessible)](#scenario-2---mock-a-struct-method-either-private-or-public-as-long-as-accessible)
-    - [Scenario 3 - mock a public interface method](#scenario-3---mock-a-public-interface-method)
-    - [Scenario 4 - mock a function / method with side effects](#scenario-4---mock-a-function--method-with-side-effects)
-    - [Scenario 5 - mock a function / method to be not called](#scenario-5---mock-a-function--method-to-be-not-called)
-    - [Scenario 6 - bypass parameter matching](#scenario-6---bypass-parameter-matching)
-    - [Scenario 7 - customize parameter matching](#scenario-7---customize-parameter-matching)
+  - [Scenario 1 - mock a function (either private or public, as long as accessible)](#scenario-1---mock-a-function-either-private-or-public-as-long-as-accessible)
+  - [Scenario 2 - mock a struct method (either private or public, as long as accessible)](#scenario-2---mock-a-struct-method-either-private-or-public-as-long-as-accessible)
+  - [Scenario 3 - mock a public interface method](#scenario-3---mock-a-public-interface-method)
+  - [Scenario 4 - mock a function / method with side effects](#scenario-4---mock-a-function--method-with-side-effects)
+  - [Scenario 5 - mock a function / method to be not called](#scenario-5---mock-a-function--method-to-be-not-called)
+  - [Scenario 6 - bypass parameter matching](#scenario-6---bypass-parameter-matching)
+  - [Scenario 7 - customize parameter matching](#scenario-7---customize-parameter-matching)
 
 ### Scenario 1 - mock a function (either private or public, as long as accessible)
 
