@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        go: [1.23]
+        go: [1.25]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,6 +33,14 @@ jobs:
         run: |
           go test -gcflags=all=-l -v ./... -covermode=count -coverprofile='coverage.out'
           go tool cover -func='coverage.out' -o='coverage.out'
+
+      - name: Install goveralls
+        run: go install github.com/mattn/goveralls@latest
+
+      - name: Send coverage
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goveralls -coverprofile=covprofile -service=github
 
       - name: Go Coverage Badge # Pass the `coverage.out` output to this action
         uses: tj-actions/coverage-badge-go@v2
